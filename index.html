@@ -1,0 +1,2624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>System C — URL Tools | Filter & Extract</title>
+<!-- SPEED: Preconnect to external domains for faster resource loading -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin/>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<!-- SPEED: Font Awesome loaded with media="print" then swapped — non-blocking CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" media="print" onload="this.media='all'"/>
+<noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/></noscript>
+<!-- Firebase SDK — loaded synchronously (app depends on firebase global at parse time) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<style>
+/* ══════════════════════════════════════════════
+   SYSTEM C — URL TOOLS  v2.0
+   Standalone URL Filtering, Extraction & Domain Processing Utility
+   Upgraded: Real-Time Cloud Sync + Web Worker + Optimistic UI
+   Decoupled from ProDesk Suite monolith
+════════════════════════════════ */
+
+/* ══════════════════════════════════════════════
+   THEME ENGINE — Dark (default) + Light override
+════════════════════════════════ */
+:root {
+  /* ── Dark Palette (DEFAULT) ── */
+  --bg: #0d0e12;
+  --surface: #161821;
+  --surface2: #1c1e2a;
+  --border: #242736;
+  --border2: #2e3148;
+  --accent: #4f46e5;
+  --accent2: #6366f1;
+  --accent-light: rgba(79,70,229,0.12);
+  --accent-glow: rgba(79,70,229,0.22);
+  --green: #22c997;
+  --green-light: rgba(34,201,151,0.12);
+  --yellow: #f59f00;
+  --yellow-light: rgba(245,159,0,0.12);
+  --red: #f87171;
+  --red-light: rgba(248,113,113,0.12);
+  --purple: #a78bfa;
+  --purple-light: rgba(167,139,250,0.12);
+  --text: #f1f3f9;
+  --text2: #b0b8d0;
+  --text3: #6b7394;
+  --white: #ffffff;
+  --input-focus-bg: #1c1e2a;
+  --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 4px 16px rgba(0,0,0,0.2);
+  --shadow-md: 0 4px 24px rgba(0,0,0,0.35);
+  --shadow-lg: 0 8px 48px rgba(0,0,0,0.45);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Space Grotesk', sans-serif;
+  --badge-gray-bg: rgba(107,115,148,0.15);
+  --badge-gray-fg: #9ca3c0;
+  --stat-active-bg: linear-gradient(135deg, rgba(79,70,229,0.10) 0%, rgba(22,24,33,0.80) 100%);
+  --select-active-bg: #3b32b0;
+}
+
+/* ── Light Palette Override ── */
+[data-theme="light"] {
+  --bg: #f4f6fa;
+  --surface: #ffffff;
+  --surface2: #f7f9ff;
+  --border: #e2e8f0;
+  --border2: #c8d4f0;
+  --accent: #4f46e5;
+  --accent2: #6366f1;
+  --accent-light: #eef2ff;
+  --accent-glow: rgba(79,70,229,0.15);
+  --green: #12b886;
+  --green-light: #e6f9f4;
+  --yellow: #f59f00;
+  --yellow-light: #fff8e6;
+  --red: #fa5252;
+  --red-light: #fff0f0;
+  --purple: #7950f2;
+  --purple-light: #f0ebff;
+  --text: #1e293b;
+  --text2: #475569;
+  --text3: #94a3b8;
+  --white: #ffffff;
+  --input-focus-bg: #ffffff;
+  --shadow: 0 1px 3px rgba(79,70,229,0.08), 0 4px 16px rgba(79,70,229,0.06);
+  --shadow-md: 0 4px 24px rgba(79,70,229,0.12);
+  --shadow-lg: 0 8px 48px rgba(79,70,229,0.16);
+  --badge-gray-bg: #f0f0f0; --badge-gray-fg: #6b7394;
+  --stat-active-bg: linear-gradient(135deg, #f0f4ff 0%, #ffffff 100%);
+  --select-active-bg: #2f4cc9;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+
+/* ── LAYOUT ── */
+.app { display: flex; min-height: 100vh; }
+.sidebar { width: 230px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; overflow: hidden; }
+.main { margin-left: 230px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+/* SIDEBAR */
+.sidebar-logo { padding: 20px 16px 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+.logo-icon { width: 34px; height: 34px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 16px; flex-shrink: 0; }
+.logo-text { font-weight: 700; font-size: 14px; color: var(--text); line-height: 1.2; white-space: nowrap; }
+.logo-text span { display: block; font-size: 10px; color: var(--text3); font-weight: 400; }
+.sidebar-nav { flex: 1; padding: 12px 8px; overflow-y: auto; }
+.nav-section { margin-bottom: 8px; }
+.nav-label { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; padding: 6px 8px 4px; white-space: nowrap; overflow: hidden; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radius-sm); cursor: pointer; color: var(--text2); font-size: 13px; font-weight: 500; transition: all 0.2s; white-space: nowrap; position: relative; }
+.nav-item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nav-item i { width: 18px; text-align: center; flex-shrink: 0; font-size: 14px; }
+.nav-item:hover { background: var(--accent-light); color: var(--accent); }
+.nav-item.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.sidebar-footer { padding: 12px 8px; border-top: 1px solid var(--border); }
+
+/* TOP BAR */
+.topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 50; }
+.topbar-title { font-size: 16px; font-weight: 700; color: var(--text); flex-shrink: 0; }
+.topbar-title span { color: var(--accent); }
+.topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+/* CONTENT */
+.content { flex: 1; padding: 24px; max-width: 100%; contain: layout style; }
+.page { max-width: 100%; }
+.tool-page { display: none; }
+.tool-page.active { display: block; animation: fadeIn 0.2s ease; }
+
+/* BUTTONS */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius-sm); font-family: var(--sans); font-size: 12px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; white-space: nowrap; text-decoration: none; }
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--select-active-bg); }
+.btn-secondary { background: var(--surface); color: var(--text2); border: 1px solid var(--border); }
+.btn-secondary:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.btn-ghost { background: transparent; color: var(--text3); padding: 6px 8px; }
+.btn-ghost:hover { background: var(--accent-light); color: var(--accent); }
+.btn-danger { background: var(--red-light); color: var(--red); }
+.btn-danger:hover { background: var(--red); color: #fff; }
+.btn-sm { padding: 5px 10px; font-size: 11px; }
+.btn-icon { padding: 7px; border-radius: 8px; }
+
+/* SECTION HEADERS */
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.section-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.section-sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
+
+/* BADGES */
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+.badge-accent { background: var(--accent-light); color: var(--accent); }
+.badge-green { background: var(--green-light); color: var(--green); }
+.badge-red { background: var(--red-light); color: var(--red); }
+
+/* TOOL PANELS */
+.tool-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+.tool-panel h4 { font-size: 13px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* TOAST */
+#toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 2000; display: flex; flex-direction: column-reverse; gap: 8px; }
+.toast { background: var(--text); color: #fff; padding: 10px 16px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; max-width: 300px; animation: slideInToast 0.3s ease; display: flex; align-items: center; gap: 8px; box-shadow: var(--shadow-md); }
+.toast.success { background: var(--green); }
+.toast.error { background: var(--red); }
+.toast.warning { background: var(--yellow); color: var(--text); }
+@keyframes slideInToast { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+@keyframes progressSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
+
+/* ══════════════════════════════════════════════════════
+   SYNC STATUS BAR (v2.0 Upgrade)
+══════════════════════════════════════════════════════ */
+.sync-status-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 14px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: 11px; color: var(--text2);
+  margin-left: auto;
+}
+.sync-status-bar .sync-conn { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+.sync-status-bar .sync-conn .conn-dot { width: 7px; height: 7px; border-radius: 50%; }
+.sync-status-bar .sync-conn.online .conn-dot { background: var(--green); }
+.sync-status-bar .sync-conn.offline .conn-dot { background: var(--red); }
+.sync-status-bar .sync-conn.online { color: var(--green); }
+.sync-status-bar .sync-conn.offline { color: var(--red); }
+.sync-status-bar .sync-dir { color: var(--text3); font-size: 12px; }
+.sync-status-bar .sync-dir.uploading { color: var(--yellow); }
+.sync-status-bar .sync-dir.downloading { color: var(--accent); }
+.sync-status-bar .sync-time { color: var(--text3); font-size: 10px; }
+
+/* ══════════════════════════════════════════════════════
+   PROCESSING INDICATOR (v2.0 Upgrade)
+══════════════════════════════════════════════════════ */
+.processing-bar {
+  position: relative; width: 100%; height: 3px; background: var(--border);
+  border-radius: 2px; overflow: hidden; opacity: 0; transition: opacity 0.2s;
+}
+.processing-bar.active { opacity: 1; }
+.processing-bar .processing-fill {
+  position: absolute; top: 0; left: 0; width: 40%; height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 2px; animation: progressSlide 1.2s ease-in-out infinite;
+}
+.processing-label { font-size: 11px; color: var(--accent); font-weight: 600; text-align: center; padding: 4px 0; display: none; }
+.processing-label.active { display: block; }
+
+/* ══════════════════════════════════════════════════════
+   PROFILE MANAGER MODAL (v2.0 Upgrade)
+══════════════════════════════════════════════════════ */
+.profile-modal-overlay {
+  position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,0.5);
+  display: none; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+}
+.profile-modal-overlay.active { display: flex; }
+.profile-modal {
+  width: 100%; max-width: 440px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 16px;
+  box-shadow: var(--shadow-lg); overflow: hidden;
+}
+.profile-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.profile-modal-header h3 { font-size: 15px; font-weight: 700; color: var(--text); }
+.profile-modal-close {
+  width: 30px; height: 30px; border-radius: 8px; border: none;
+  background: var(--surface2); color: var(--text3); cursor: pointer;
+  font-size: 14px; display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.profile-modal-close:hover { background: var(--red-light); color: var(--red); }
+.profile-modal-body { padding: 16px 20px; max-height: 400px; overflow-y: auto; }
+.profile-list-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border-radius: var(--radius-sm); margin-bottom: 6px;
+  border: 1px solid var(--border); background: var(--bg);
+  transition: all 0.15s;
+}
+.profile-list-item:hover { border-color: var(--accent); }
+.profile-list-item .profile-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-list-item .profile-name input {
+  width: 100%; background: transparent; border: none; color: var(--text);
+  font-family: var(--sans); font-size: 13px; font-weight: 600; outline: none;
+  padding: 0;
+}
+.profile-list-item .profile-name input:focus { border-bottom: 1px solid var(--accent); }
+.profile-list-item .profile-actions { display: flex; gap: 4px; }
+.profile-list-item .profile-actions button {
+  width: 28px; height: 28px; border-radius: 6px; border: none;
+  background: var(--surface); color: var(--text3); cursor: pointer;
+  font-size: 11px; display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.profile-list-item .profile-actions button:hover { color: var(--accent); background: var(--accent-light); }
+.profile-list-item .profile-actions button.del-btn:hover { color: var(--red); background: var(--red-light); }
+.profile-add-row {
+  display: flex; gap: 8px; margin-top: 12px;
+}
+.profile-add-row input {
+  flex: 1; padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--bg); color: var(--text);
+  font-family: var(--sans); font-size: 13px; outline: none;
+}
+.profile-add-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.profile-add-row input::placeholder { color: var(--text3); }
+.profile-add-row button {
+  padding: 8px 14px; border-radius: var(--radius-sm); border: none;
+  background: var(--accent); color: #fff; font-family: var(--sans);
+  font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s;
+}
+.profile-add-row button:hover { background: var(--select-active-bg); }
+
+/* ══════════════════════════════════════════════════════
+   ACTIVITY LOG (v2.0 Upgrade)
+══════════════════════════════════════════════════════ */
+.activity-log {
+  border-top: 1px solid var(--border); padding: 8px; max-height: 0;
+  overflow: hidden; transition: max-height 0.3s ease;
+}
+.activity-log.expanded { max-height: 200px; overflow-y: auto; }
+.activity-log-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; border-top: 1px solid var(--border);
+  cursor: pointer; color: var(--text3); font-size: 11px; font-weight: 600;
+  transition: color 0.15s;
+}
+.activity-log-toggle:hover { color: var(--accent); }
+.activity-log-toggle i { font-size: 10px; transition: transform 0.2s; }
+.activity-log-toggle.expanded i { transform: rotate(180deg); }
+.activity-entry {
+  display: flex; align-items: flex-start; gap: 8px; padding: 4px 8px;
+  font-size: 10px; color: var(--text3); line-height: 1.4;
+}
+.activity-entry .activity-time { color: var(--text3); font-family: var(--mono); flex-shrink: 0; white-space: nowrap; }
+.activity-entry .activity-msg { color: var(--text2); }
+
+/* ══════════════════════════════════════════════════════
+   MOBILE BOTTOM NAV
+══════════════════════════════════════════════════════ */
+.mobile-nav {
+  display: none;
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  z-index: 500;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: 0 -2px 16px rgba(59,91,219,0.09);
+}
+.mobile-nav-inner { display: flex; align-items: stretch; }
+.mobile-nav-item {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; padding: 8px 4px 6px; cursor: pointer; flex: 1;
+  color: var(--text3); font-size: 10px; font-weight: 600;
+  transition: color 0.18s; -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+.mobile-nav-item i { font-size: 20px; }
+.mobile-nav-item.active { color: var(--accent); }
+.mobile-nav-item.active::before {
+  content: ''; position: absolute; top: 0; left: 25%; right: 25%;
+  height: 2px; background: var(--accent); border-radius: 0 0 4px 4px;
+}
+
+/* ══════════════════════════════════════════════════════
+   FIREBASE AUTH - Login / Sign-Up Overlay
+══════════════════════════════════════════════════════ */
+.auth-overlay {
+  position: fixed; inset: 0; z-index: 99999;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+.auth-overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+.auth-card {
+  width: 100%; max-width: 420px; padding: 40px 36px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 20px; box-shadow: var(--shadow-lg);
+  position: relative; overflow: hidden;
+}
+.auth-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2), var(--purple));
+  border-radius: 20px 20px 0 0;
+}
+
+.auth-logo { text-align: center; margin-bottom: 28px; }
+.auth-logo-icon {
+  width: 56px; height: 56px; background: var(--accent); border-radius: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 24px; margin-bottom: 12px;
+}
+.auth-logo h2 { font-size: 20px; font-weight: 700; color: var(--text); margin: 0; }
+.auth-logo p { font-size: 12px; color: var(--text3); margin-top: 4px; }
+
+.auth-tabs { display: flex; gap: 0; margin-bottom: 24px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+.auth-tab {
+  flex: 1; padding: 10px 0; text-align: center; font-size: 13px; font-weight: 600;
+  cursor: pointer; background: var(--bg); color: var(--text3);
+  transition: all 0.2s; border: none; outline: none;
+}
+.auth-tab.active { background: var(--accent); color: #fff; }
+.auth-tab:hover:not(.active) { color: var(--accent); }
+
+.auth-form { display: none; flex-direction: column; gap: 14px; }
+.auth-form.active { display: flex; }
+
+.auth-field { display: flex; flex-direction: column; gap: 5px; }
+.auth-field label { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+.auth-field input {
+  padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px;
+  font-family: var(--sans); font-size: 14px; color: var(--text);
+  background: var(--bg); outline: none; transition: all 0.2s;
+}
+.auth-field input:focus { border-color: var(--accent); background: var(--input-focus-bg); box-shadow: 0 0 0 3px var(--accent-glow); }
+
+.auth-btn {
+  width: 100%; padding: 12px; border-radius: 10px; border: none;
+  font-family: var(--sans); font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: all 0.2s; margin-top: 4px;
+}
+.auth-btn-primary { background: var(--accent); color: #fff; }
+.auth-btn-primary:hover { background: var(--select-active-bg); transform: translateY(-1px); }
+.auth-btn-primary:active { transform: scale(0.98); }
+
+.auth-error {
+  font-size: 12px; color: var(--red); text-align: center;
+  min-height: 18px; margin-top: 2px;
+}
+
+.user-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 20px;
+  background: var(--accent-light); color: var(--accent);
+  font-size: 12px; font-weight: 600; max-width: 180px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.user-pill i { font-size: 13px; }
+
+.btn-logout {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px; border-radius: var(--radius-sm);
+  background: var(--red-light); color: var(--red);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  border: 1px solid transparent; transition: all 0.15s;
+}
+.btn-logout:hover { background: var(--red); color: #fff; }
+
+/* ══════════════════════════════════════════════════════
+   THEME TOGGLE SWITCH
+══════════════════════════════════════════════════════ */
+.theme-switch-control {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 8px;
+  background: var(--surface2); border: 1px solid var(--border);
+  cursor: pointer; font-size: 14px; color: var(--text2);
+  transition: all 0.2s; padding: 0; position: relative; overflow: hidden;
+}
+.theme-switch-control:hover {
+  background: var(--accent-light); color: var(--accent); border-color: var(--accent);
+}
+.theme-switch-control i { transition: transform 0.3s ease, opacity 0.2s; }
+.theme-switch-control .fa-sun { display: none; }
+.theme-switch-control .fa-moon { display: inline; }
+[data-theme="light"] .theme-switch-control .fa-sun { display: inline; }
+[data-theme="light"] .theme-switch-control .fa-moon { display: none; }
+[data-theme="light"] .theme-switch-control { color: var(--yellow); }
+
+/* ══════════════════════════════════════════════════════
+   URL FILTERS — Custom Workspace Tool
+══════════════════════════════════════════════════════ */
+.uf-wrap { display: flex; flex-direction: column; gap: 16px; }
+.uf-top-row {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.uf-top-row label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+.uf-profile-sel {
+  padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg); font-family: var(--sans); font-size: 13px; font-weight: 600;
+  color: var(--text); outline: none; cursor: pointer; min-width: 120px;
+}
+.uf-profile-sel:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.uf-manage-profiles-btn {
+  padding: 5px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text3); font-family: var(--sans);
+  font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+}
+.uf-manage-profiles-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.uf-sync-badge {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600;
+  padding: 4px 10px; border-radius: 20px; margin-left: auto;
+}
+.uf-sync-badge.synced { background: var(--green-light); color: var(--green); }
+.uf-sync-badge.syncing { background: var(--yellow-light); color: var(--yellow); }
+.uf-sync-badge.error { background: var(--red-light); color: var(--red); }
+.uf-sync-badge.offline { background: var(--badge-gray-bg); color: var(--badge-gray-fg); }
+.uf-sync-badge .sync-dot-sm { width: 6px; height: 6px; border-radius: 50%; }
+.uf-sync-badge.synced .sync-dot-sm { background: var(--green); }
+.uf-sync-badge.syncing .sync-dot-sm { background: var(--yellow); animation: pulse 1s infinite; }
+.uf-sync-badge.error .sync-dot-sm { background: var(--red); }
+.uf-sync-badge.offline .sync-dot-sm { background: var(--badge-gray-fg); }
+
+.uf-input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+.uf-output-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+.uf-field-block { display: flex; flex-direction: column; gap: 6px; }
+.uf-textarea-wrap { position: relative; }
+.uf-textarea-label {
+  font-size: 12px; font-weight: 700; color: var(--text2); text-transform: uppercase;
+  letter-spacing: 0.6px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;
+}
+.uf-textarea-label i { font-size: 12px; color: var(--accent); }
+.uf-textarea {
+  font-family: 'JetBrains Mono', monospace; font-size: 15px; line-height: 1.6;
+  letter-spacing: -0.3px; padding: 14px; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; width: 100%; min-height: 250px;
+  resize: vertical; outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+}
+.uf-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); background: var(--input-focus-bg); }
+.uf-textarea[readonly] { background: var(--surface2); cursor: default; }
+.uf-textarea[readonly]:focus { border-color: var(--border); box-shadow: none; }
+.uf-textarea.drag-over { border-color: var(--accent); background: var(--accent-light); box-shadow: 0 0 0 3px var(--accent-glow); }
+
+.uf-copy-btn {
+  position: absolute; top: 6px; right: 6px; padding: 3px 8px; border-radius: 6px;
+  font-size: 10px; font-weight: 700; font-family: var(--sans); cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text3);
+  transition: all 0.15s; z-index: 2;
+}
+.uf-copy-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.uf-copy-btn.copied { border-color: var(--green); color: var(--green); background: var(--green-light); }
+
+.url-counter-badge {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
+  font-family: 'Space Grotesk', sans-serif; font-size: 1.25rem; font-weight: 700;
+  color: var(--accent); padding: 4px 12px;
+  background: rgba(80, 70, 229, 0.1); border-radius: 4px;
+}
+.url-counter-badge .counter-digit {
+  font-size: 1.4rem; font-weight: 800; color: var(--accent);
+  font-family: 'JetBrains Mono', monospace;
+  min-width: 1.2em; text-align: center;
+}
+
+.uf-validation-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+.uf-val-badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px;
+  border-radius: 20px; font-size: 10px; font-weight: 700; font-family: var(--mono);
+}
+.uf-val-badge.valid { background: var(--green-light); color: var(--green); }
+.uf-val-badge.invalid { background: var(--red-light); color: var(--red); }
+.uf-val-badge .val-preview { font-family: var(--sans); font-weight: 500; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.uf-action-row {
+  display: flex; justify-content: center; padding: 6px 0;
+  position: relative;
+}
+.uf-action-row::before, .uf-action-row::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border2), transparent);
+  align-self: center;
+}
+.uf-action-row::before { margin-right: 16px; }
+.uf-action-row::after { margin-left: 16px; }
+.uf-filter-btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 14px 36px;
+  border-radius: var(--radius); font-family: var(--sans); font-size: 15px; font-weight: 700;
+  cursor: pointer; border: none; color: #fff;
+  background: linear-gradient(135deg, var(--accent) 0%, #4c6ef5 100%);
+  box-shadow: 0 4px 16px rgba(59,91,219,0.3); transition: all 0.2s;
+  letter-spacing: 0.2px;
+}
+.uf-filter-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(59,91,219,0.4); }
+.uf-filter-btn:active { transform: translateY(0) scale(0.98); }
+.uf-filter-btn i { font-size: 14px; }
+
+/* ══════════════════════════════════════════════════════
+   DOMAIN EXTRACTOR — Custom Workspace Tool
+══════════════════════════════════════════════════════ */
+.de-wrap { display: flex; flex-direction: column; gap: 16px; }
+.de-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.de-col { display: flex; flex-direction: column; gap: 10px; }
+.de-textarea-wrap { position: relative; }
+.de-textarea-label {
+  font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase;
+  letter-spacing: 0.6px; margin-bottom: 2px; display: flex; align-items: center; gap: 6px;
+}
+.de-textarea-label i { font-size: 11px; color: var(--accent); }
+.de-textarea {
+  width: 100%; height: 280px; padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-family: var(--mono); font-size: 12px;
+  line-height: 1.6; color: var(--text); background: var(--bg); resize: vertical;
+  outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+}
+.de-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); background: var(--input-focus-bg); }
+.de-textarea[readonly] { background: var(--surface2); cursor: default; }
+.de-textarea[readonly]:focus { border-color: var(--border); box-shadow: none; }
+.de-textarea.drag-over { border-color: var(--accent); background: var(--accent-light); box-shadow: 0 0 0 3px var(--accent-glow); }
+.de-line-count { font-family: var(--mono); font-size: 10px; color: var(--text3); margin-top: 2px; }
+
+/* Config Row */
+.de-config-row {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.de-checkbox-wrap {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: var(--text2); user-select: none;
+}
+.de-checkbox-wrap input[type="checkbox"] {
+  display: none;
+}
+.de-checkbox-custom {
+  width: 18px; height: 18px; border: 2px solid var(--border2); border-radius: 5px;
+  background: var(--bg); display: inline-flex; align-items: center; justify-content: center;
+  transition: all 0.15s; flex-shrink: 0;
+}
+.de-checkbox-wrap input[type="checkbox"]:checked + .de-checkbox-custom {
+  background: var(--accent); border-color: var(--accent);
+}
+.de-checkbox-wrap input[type="checkbox"]:checked + .de-checkbox-custom::after {
+  content: ''; display: block; width: 5px; height: 9px;
+  border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); margin-top: -2px;
+}
+.de-affix-group { display: flex; align-items: center; gap: 6px; }
+.de-affix-label { font-size: 10px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; }
+.de-affix-input {
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg); font-family: var(--mono); font-size: 12px; color: var(--text);
+  outline: none; width: 140px; transition: border-color 0.2s, box-shadow 0.2s;
+}
+.de-affix-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); background: var(--input-focus-bg); }
+.de-affix-input::placeholder { color: var(--text3); font-family: var(--sans); font-size: 11px; }
+
+/* Action Buttons */
+.de-action-row { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.de-extract-btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 12px 28px;
+  border-radius: var(--radius); font-family: var(--sans); font-size: 14px; font-weight: 700;
+  cursor: pointer; border: none; color: #fff;
+  background: linear-gradient(135deg, var(--accent) 0%, #4c6ef5 100%);
+  box-shadow: 0 4px 16px rgba(59,91,219,0.3); transition: all 0.2s;
+}
+.de-extract-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(59,91,219,0.4); }
+.de-extract-btn:active { transform: translateY(0) scale(0.98); }
+.de-extract-btn i { font-size: 14px; }
+.de-action-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px;
+  border-radius: var(--radius-sm); font-family: var(--sans); font-size: 12px; font-weight: 600;
+  cursor: pointer; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text2); transition: all 0.15s;
+}
+.de-action-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.de-action-btn.copied { border-color: var(--green); color: var(--green); background: var(--green-light); }
+
+/* ── Global Font Scale Polish: Tool Panels ── */
+.tool-page .uf-textarea,
+.tool-page .de-textarea { font-size: 15px; }
+.tool-page .uf-textarea-label,
+.tool-page .de-textarea-label,
+.tool-page .de-affix-label,
+.tool-page .de-checkbox-wrap span,
+.tool-page .uf-top-row label { font-size: 12px; }
+.tool-page .de-affix-input { font-size: 13px; }
+.tool-page .url-counter-badge { font-size: 1.25rem; font-weight: 700; color: var(--accent); }
+.tool-page .de-line-count { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+.tool-page .uf-profile-sel { font-size: 14px; }
+
+/* ══════════════════════════════════════════════════════
+   PRIVACY FOOTER NOTE
+══════════════════════════════════════════════════════ */
+.privacy-footer {
+  margin-top: 32px; padding: 16px 0; text-align: center;
+  border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--text3);
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.privacy-footer i { color: var(--green); }
+
+/* ══════════════════════════════
+   MOBILE RESPONSIVE
+════════════════════════════════ */
+
+/* Mobile responsive for URL Filters & Domain Extractor */
+@media (max-width: 767px) {
+  /* Collapse sidebar to icon-only */
+  .sidebar { width: 54px; }
+  .main { margin-left: 54px; }
+  .sidebar .nav-item span, .sidebar .logo-text, .sidebar .nav-label { display: none; }
+  .sidebar-logo { padding: 14px 10px; justify-content: center; }
+  .logo-icon { width: 30px; height: 30px; font-size: 14px; }
+
+  .uf-input-grid, .uf-output-grid { grid-template-columns: 1fr; }
+  .de-columns { grid-template-columns: 1fr; }
+  .uf-textarea { min-height: 180px; font-size: 12px; }
+  .de-textarea { height: 200px; font-size: 11px; }
+  .uf-top-row { flex-direction: column; align-items: stretch; gap: 8px; }
+  .uf-sync-badge { margin-left: 0; }
+  .de-config-row { flex-direction: column; align-items: stretch; gap: 8px; }
+  .de-affix-input { width: 100%; }
+  .url-counter-badge { font-size: 1.1rem; }
+  .url-counter-badge .counter-digit { font-size: 1.2rem; }
+
+  /* Touch-friendly buttons */
+  .btn { min-height: 38px; padding: 10px 16px; font-size: 13px; border-radius: 10px; }
+
+  .sync-status-bar { font-size: 10px; gap: 6px; }
+}
+
+@media (max-width: 600px) {
+  /* Base */
+  html { font-size: 15px; }
+  body, .app { overflow-x: hidden; }
+
+  /* Layout — full mobile: hide sidebar, show bottom nav */
+  .sidebar { display: none !important; }
+  .main { margin-left: 0 !important; min-width: 0; padding-bottom: 72px; }
+  .mobile-nav { display: block; }
+
+  /* Topbar */
+  .topbar { padding: 0 12px; height: 52px; gap: 8px; overflow: visible; position: sticky; top: 0; z-index: 100; }
+  .topbar-title { font-size: 15px; font-weight: 700; flex-shrink: 0; }
+  .topbar-actions { margin-left: auto; gap: 6px; flex-shrink: 0; align-items: center; }
+
+  /* Content padding */
+  .content { padding: 10px 12px; }
+
+  .uf-textarea { min-height: 160px; font-size: 11px; }
+  .de-textarea { height: 180px; font-size: 11px; }
+  .uf-filter-btn { width: 100%; justify-content: center; padding: 14px 24px; font-size: 13px; border-radius: 10px; }
+  .de-extract-btn { width: 100%; justify-content: center; padding: 14px 24px; font-size: 13px; border-radius: 10px; }
+  .de-action-row { flex-direction: column; }
+  .de-action-btn { justify-content: center; padding: 12px 16px; }
+  .url-counter-badge { font-size: 1rem; padding: 3px 10px; }
+  .url-counter-badge .counter-digit { font-size: 1.1rem; }
+
+  .auth-card { margin: 16px; padding: 28px 20px; border-radius: 16px; }
+  .user-pill { max-width: 120px; font-size: 11px; padding: 4px 8px; }
+  .btn-logout { font-size: 11px; padding: 5px 10px; }
+
+  .sync-status-bar { flex-wrap: wrap; }
+}
+
+</style>
+</head>
+<body>
+
+<div id="toast-container"></div>
+
+<!-- ══ FIREBASE AUTH - Login / Sign-Up Overlay ══ -->
+<div id="auth-overlay" class="auth-overlay">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="auth-logo-icon"><i class="fa-solid fa-globe"></i></div>
+      <h2>URL <span style="color:var(--accent)">Tools</span></h2>
+      <p>Sign in to sync your filter profiles across devices</p>
+    </div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="auth-tab-login" onclick="switchAuthTab('login')">Log In</button>
+      <button class="auth-tab" id="auth-tab-signup" onclick="switchAuthTab('signup')">Sign Up</button>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <form id="auth-form-login" class="auth-form active" onsubmit="handleLogin(event)">
+      <div class="auth-field">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" placeholder="you@example.com" required autocomplete="email" />
+      </div>
+      <div class="auth-field">
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" placeholder="Enter your password" required autocomplete="current-password" />
+      </div>
+      <div class="auth-error" id="login-error"></div>
+      <button type="submit" class="auth-btn auth-btn-primary">Log In</button>
+    </form>
+
+    <!-- SIGN UP FORM -->
+    <form id="auth-form-signup" class="auth-form" onsubmit="handleSignUp(event)">
+      <div class="auth-field">
+        <label for="signup-email">Email</label>
+        <input type="email" id="signup-email" placeholder="you@example.com" required autocomplete="email" />
+      </div>
+      <div class="auth-field">
+        <label for="signup-password">Password</label>
+        <input type="password" id="signup-password" placeholder="Min. 6 characters" required minlength="6" autocomplete="new-password" />
+      </div>
+      <div class="auth-field">
+        <label for="signup-confirm">Confirm Password</label>
+        <input type="password" id="signup-confirm" placeholder="Re-enter password" required minlength="6" autocomplete="new-password" />
+      </div>
+      <div class="auth-error" id="signup-error"></div>
+      <button type="submit" class="auth-btn auth-btn-primary">Create Account</button>
+    </form>
+  </div>
+</div>
+
+<!-- ══ PROFILE MANAGER MODAL ══ -->
+<div id="profile-modal-overlay" class="profile-modal-overlay">
+  <div class="profile-modal">
+    <div class="profile-modal-header">
+      <h3><i class="fas fa-users" style="color:var(--accent);margin-right:6px"></i> Manage Profiles</h3>
+      <button class="profile-modal-close" onclick="closeProfileModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="profile-modal-body" id="profile-modal-body">
+      <!-- Dynamically populated -->
+    </div>
+  </div>
+</div>
+
+<!-- ══ APP ══ -->
+<div class="app" id="app-main" style="display:none;">
+
+  <!-- ══ SIDEBAR ══ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon"><i class="fa-solid fa-globe"></i></div>
+      <div class="logo-text">URL Tools<span>Filter & Extract</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-label">Tools</div>
+        <div class="nav-item active" onclick="showTool('url-filters')" id="nav-url-filters"><i class="fa-solid fa-link"></i><span>URL Filters</span></div>
+        <div class="nav-item" onclick="showTool('domain-extractor')" id="nav-domain-extractor"><i class="fa-solid fa-globe"></i><span>Domain Extractor</span></div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Connected</div>
+        <div class="nav-item" onclick="window.open('https://crm.domain.com','_blank')"><i class="fas fa-briefcase"></i><span>Core CRM</span><i class="fas fa-external-link-alt" style="font-size:9px;color:var(--text3);margin-left:auto"></i></div>
+        <div class="nav-item" onclick="window.open('https://backlinks.domain.com','_blank')"><i class="fa-solid fa-link"></i><span>Backlink Manager</span><i class="fas fa-external-link-alt" style="font-size:9px;color:var(--text3);margin-left:auto"></i></div>
+      </div>
+    </nav>
+
+    <!-- Activity Log (collapsible) -->
+    <div style="margin-top:auto;">
+      <div class="activity-log-toggle" id="activity-log-toggle" onclick="toggleActivityLog()">
+        <span><i class="fas fa-history" style="margin-right:4px"></i> Sync Activity</span>
+        <i class="fas fa-chevron-up"></i>
+      </div>
+      <div class="activity-log" id="activity-log">
+        <!-- Dynamically populated -->
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="nav-item" onclick="clearAllToolData()"><i class="fas fa-trash-alt"></i><span>Clear All Data</span></div>
+    </div>
+  </aside>
+
+  <!-- ══ MOBILE BOTTOM NAV ══ -->
+  <nav class="mobile-nav" id="mobile-nav">
+    <div class="mobile-nav-inner">
+      <div class="mobile-nav-item active" onclick="showTool('url-filters');setMobileNav(this)" id="mnav-url-filters">
+        <i class="fa-solid fa-link"></i><span>Filters</span>
+      </div>
+      <div class="mobile-nav-item" onclick="showTool('domain-extractor');setMobileNav(this)" id="mnav-domain-extractor">
+        <i class="fa-solid fa-globe"></i><span>Extract</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ══ MAIN ══ -->
+  <div class="main">
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-title">URL <span>Tools</span></div>
+      <div class="topbar-actions">
+        <!-- Sync Status Bar (v2.0) -->
+        <div class="sync-status-bar" id="sync-status-bar">
+          <div class="sync-conn online" id="sync-conn"><span class="conn-dot"></span><span id="sync-conn-text">Online</span></div>
+          <span class="sync-dir" id="sync-dir" style="display:none"></span>
+          <span class="sync-time" id="sync-time"></span>
+        </div>
+        <button id="theme-toggle-btn" class="theme-switch-control" title="Toggle Light / Dark Theme" onclick="toggleTheme()"><i class="fa-solid fa-moon"></i><i class="fa-solid fa-sun"></i></button>
+        <div class="user-pill" id="user-pill" style="display:none;"><i class="fas fa-user-circle"></i><span id="user-email-display">-</span></div>
+        <button class="btn-logout" id="btn-logout" onclick="handleLogout()" style="display:none;"><i class="fas fa-sign-out-alt"></i> Log Out</button>
+      </div>
+    </header>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+      <!-- ═══ TOOL PAGE: URL FILTERS ═══ -->
+      <div class="tool-page active" id="tool-page-url-filters">
+        <div class="section-header" style="margin-bottom:20px">
+          <div>
+            <div class="section-title"><i class="fa-solid fa-link" style="color:var(--accent);margin-right:6px"></i> URL Filters</div>
+            <div class="section-sub">Compare two URL lists, find duplicates & unique domains</div>
+          </div>
+        </div>
+
+        <div class="uf-wrap">
+          <!-- ── TOP ROW: Profile selector + sync status ── -->
+          <div class="uf-top-row">
+            <label for="uf-profile"><i class="fas fa-user-circle" style="margin-right:2px"></i> Profile</label>
+            <select class="uf-profile-sel" id="uf-profile" onchange="ufSwitchProfile()">
+              <option value="asad">Asad</option>
+              <option value="student">Student</option>
+              <option value="noor">Noor</option>
+            </select>
+            <button class="uf-manage-profiles-btn" onclick="openProfileModal()"><i class="fas fa-cog" style="margin-right:3px"></i> Manage</button>
+            <div class="uf-sync-badge synced" id="uf-sync-badge">
+              <span class="sync-dot-sm"></span>
+              <span id="uf-sync-text">Synced</span>
+            </div>
+          </div>
+
+          <!-- Processing Indicator -->
+          <div class="processing-bar" id="uf-processing-bar"><div class="processing-fill"></div></div>
+          <div class="processing-label" id="uf-processing-label">Processing URLs…</div>
+
+          <!-- ── TOP INPUT ROW: HORIZONTAL PARALLEL INPUTS (2-col grid) ── -->
+          <div class="uf-input-grid">
+            <!-- LEFT Column: Master URL List -->
+            <div class="uf-field-block">
+              <div class="uf-textarea-label"><i class="fas fa-database"></i> Master URL List <span style="font-weight:400;color:var(--text3)">(Target Source)</span></div>
+              <div class="uf-textarea-wrap">
+                <textarea class="uf-textarea" id="uf-main-input" placeholder="Paste your full target URLs here…&#10;&#10;https://example.com/page-one&#10;https://test.org/contact-us&#10;One URL per line" oninput="ufOnMainInput()"></textarea>
+                <button class="uf-copy-btn" id="uf-copy-main" onclick="ufCopyField('uf-main-input',this)">Copy</button>
+              </div>
+              <div class="url-counter-badge" id="uf-main-count"><span class="counter-digit">0</span> lines</div>
+              <div class="uf-validation-row" id="uf-validation-row"></div>
+            </div>
+
+            <!-- RIGHT Column: Secondary URL List -->
+            <div class="uf-field-block">
+              <div class="uf-textarea-label"><i class="fas fa-layer-group"></i> Secondary URL List <span style="font-weight:400;color:var(--text3)">(Comparison Baseline)</span></div>
+              <div class="uf-textarea-wrap">
+                <textarea class="uf-textarea" id="uf-remove-input" placeholder="Paste URLs / domains to compare against…&#10;&#10;https://example.com/any-path&#10;example.com&#10;One entry per line" oninput="ufDebouncedSecondaryInput()"></textarea>
+                <button class="uf-copy-btn" id="uf-copy-remove" onclick="ufCopyField('uf-remove-input',this)">Copy</button>
+              </div>
+              <div class="url-counter-badge" id="uf-remove-count"><span class="counter-digit">0</span> lines</div>
+            </div>
+          </div>
+
+          <!-- ── MIDDLE ACTION STRIP: Full-width button ── -->
+          <div class="uf-action-row">
+            <button class="uf-filter-btn" onclick="ufFilterDomains()">
+              ⚡ Filter &amp; Separate URLs
+            </button>
+          </div>
+
+          <!-- ── BOTTOM OUTPUT ROW: HORIZONTAL PARALLEL OUTPUTS (2-col grid) ── -->
+          <div class="uf-output-grid">
+            <!-- LEFT Column: Duplicate URLs -->
+            <div class="uf-field-block">
+              <div class="uf-textarea-label"><i class="fas fa-exclamation-triangle" style="color:var(--red)"></i> Duplicate URLs <span style="font-weight:400;color:var(--text3)">(Matched)</span></div>
+              <div class="uf-textarea-wrap">
+                <textarea class="uf-textarea" id="uf-dup-output" readonly placeholder="URLs whose root domain exists in BOTH lists will appear here…"></textarea>
+                <button class="uf-copy-btn" id="uf-copy-dup" onclick="ufCopyField('uf-dup-output',this)">Copy</button>
+              </div>
+              <div class="url-counter-badge" id="uf-dup-count"><span class="counter-digit">0</span> lines</div>
+            </div>
+
+            <!-- RIGHT Column: Unique URLs -->
+            <div class="uf-field-block">
+              <div class="uf-textarea-label"><i class="fas fa-check-circle" style="color:var(--green)"></i> Unique URLs <span style="font-weight:400;color:var(--text3)">(Filtered)</span></div>
+              <div class="uf-textarea-wrap">
+                <textarea class="uf-textarea" id="uf-unique-output" readonly placeholder="URLs whose root domain is NOT in the secondary list will appear here…"></textarea>
+                <button class="uf-copy-btn" id="uf-copy-unique" onclick="ufCopyField('uf-unique-output',this)">Copy</button>
+              </div>
+              <div class="url-counter-badge" id="uf-unique-count"><span class="counter-digit">0</span> lines</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Privacy footer -->
+        <div class="privacy-footer">
+          <i class="fas fa-shield-alt"></i>
+          Your data is encrypted in transit and stored securely in Firebase. Processing runs locally in your browser.
+        </div>
+      </div>
+
+      <!-- ═══ TOOL PAGE: DOMAIN EXTRACTOR ═══ -->
+      <div class="tool-page" id="tool-page-domain-extractor">
+        <div class="section-header" style="margin-bottom:20px">
+          <div>
+            <div class="section-title"><i class="fa-solid fa-globe" style="color:var(--accent);margin-right:6px"></i> Domain Extractor</div>
+            <div class="section-sub">Extract root domains from URLs, with deduplication & affix support</div>
+          </div>
+        </div>
+
+        <div class="de-wrap">
+          <!-- Processing Indicator -->
+          <div class="processing-bar" id="de-processing-bar"><div class="processing-fill"></div></div>
+          <div class="processing-label" id="de-processing-label">Extracting domains…</div>
+
+          <!-- ── TWO-COLUMN LAYOUT ── -->
+          <div class="de-columns">
+            <!-- LEFT: Input Column -->
+            <div class="de-col">
+              <div class="de-textarea-label"><i class="fas fa-file-alt"></i> Raw Input <span style="font-weight:400;color:var(--text3)">(URLs / Text)</span></div>
+              <div class="de-textarea-wrap">
+                <textarea class="de-textarea" id="de-input" placeholder="Paste URLs or raw text here…&#10;Drag & drop a .txt / .csv file&#10;&#10;One entry per line" oninput="deOnInput()"></textarea>
+              </div>
+              <div class="de-line-count" id="de-input-count">0 lines</div>
+            </div>
+
+            <!-- RIGHT: Configuration & Output Column -->
+            <div class="de-col">
+              <!-- Configuration Suite -->
+              <div class="de-config-row">
+                <label class="de-checkbox-wrap">
+                  <input type="checkbox" id="de-dedup" checked onchange="deAutoSaveConfig()"/>
+                  <span class="de-checkbox-custom"></span>
+                  <span>Remove Duplicates</span>
+                </label>
+                <div class="de-affix-group">
+                  <label class="de-affix-label" for="de-prefix">Prefix</label>
+                  <input class="de-affix-input" type="text" id="de-prefix" placeholder="e.g. https://" oninput="deDebouncedConfigInput()"/>
+                </div>
+                <div class="de-affix-group">
+                  <label class="de-affix-label" for="de-suffix">Suffix</label>
+                  <input class="de-affix-input" type="text" id="de-suffix" placeholder="e.g. /path" oninput="deDebouncedConfigInput()"/>
+                </div>
+              </div>
+
+              <!-- Output Block -->
+              <div class="de-textarea-label" style="margin-top:10px"><i class="fas fa-check-circle" style="color:var(--green)"></i> Extracted Domains <span style="font-weight:400;color:var(--text3)">(Output)</span></div>
+              <div class="de-textarea-wrap">
+                <textarea class="de-textarea de-output" id="de-output" readonly placeholder="Extracted domains will appear here…"></textarea>
+              </div>
+              <div class="de-line-count" id="de-output-count">0 lines</div>
+
+              <!-- Action Buttons Row -->
+              <div class="de-action-row">
+                <button class="de-extract-btn" onclick="deExtractDomains()">
+                  <i class="fas fa-cog"></i> Extract Domains
+                </button>
+                <button class="de-action-btn" id="de-copy-btn" onclick="deCopyOutput()">
+                  <i class="fas fa-clipboard"></i> Copy to Clipboard
+                </button>
+                <button class="de-action-btn" onclick="deDownloadTxt()">
+                  <i class="fas fa-download"></i> Download as .TXT
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Privacy footer -->
+        <div class="privacy-footer">
+          <i class="fas fa-shield-alt"></i>
+          Your data is encrypted in transit and stored securely in Firebase. Processing runs locally in your browser.
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- ══════════════════════════════════════════════════════
+     SCRIPTS
+═══════════════════════════════════════════════════════ -->
+<script>
+/* ══════════════════════════════════════════════════════
+   ENVIRONMENT CONFIGURATION
+═══════════════════════════════════════════════════════ */
+const ENV = {
+  SYSTEM_NAME: 'System C — URL Tools',
+  SYSTEM_ID: 'system-c',
+  SUBDOMAIN: 'tools.domain.com',
+  VERSION: '2.0.0-cloud-sync',
+  FIREBASE_PROJECT: 'client-data-b5c75',
+  ALLOWED_COLLECTIONS: ['workspace_tools'],
+  SECURITY: {
+    PII_ACCESS: false,
+    FINANCIAL_ACCESS: false,
+    CLIENT_DATA_ACCESS: false,
+    STATELESS_PROCESSING: true
+  }
+};
+
+/* ══════════════════════════════════════════════════════
+   SESSION ID — identifies this browser tab for
+   Firestore write deduplication (ignore own writes)
+═══════════════════════════════════════════════════════ */
+const SESSION_ID = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+/* ══════════════════════════════════════════════════════
+   SECURITY GUARDRAILS
+═══════════════════════════════════════════════════════ */
+const SecurityGuard = {
+  BLOCKED_COLLECTIONS: [
+    'clients', 'transactions', 'expenses', 'clientBanks',
+    'backups', 'templates', 'notebook_notes', 'userSettings'
+  ],
+
+  validateDataAccess(collection) {
+    if (this.BLOCKED_COLLECTIONS.includes(collection)) {
+      console.error('[SecurityGuard] BLOCKED: Attempted access to restricted collection:', collection);
+      throw new Error('Access denied: This system cannot access ' + collection);
+    }
+    return true;
+  },
+
+  validateOutboundData(data) {
+    // URL data is not PII — all processing is client-side
+    return data;
+  }
+};
+
+/* ══════════════════════════════════════════════════════
+   INTER-SERVICE COMMUNICATION (Minimal)
+═══════════════════════════════════════════════════════ */
+const InterServiceConfig = {
+  systemA: window.SYSTEM_A_URL || 'https://crm.domain.com',
+  systemB: window.SYSTEM_B_URL || 'https://backlinks.domain.com',
+
+  async exportToBacklinkManager(urls) {
+    const encodedUrls = encodeURIComponent(urls.join('\n'));
+    window.open(this.systemB + '/import?urls=' + encodedUrls, '_blank');
+  }
+};
+
+/* ══════════════════════════════════════════════════════
+   FIREBASE INIT
+═══════════════════════════════════════════════════════ */
+const firebaseConfig = {
+  apiKey: "AIzaSyBtfPvsD8F4zkr3rMz7-IhuYtI_YvfHCpo",
+  authDomain: "client-data-b5c75.firebaseapp.com",
+  projectId: "client-data-b5c75",
+  storageBucket: "client-data-b5c75.firebasestorage.app",
+  messagingSenderId: "876780051024",
+  appId: "1:876780051024:web:b614fc6efd3c0598378f55",
+  measurementId: "G-YVKKETD5CM"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// Enable offline persistence (graceful degradation)
+try { db.enablePersistence({ synchronizeTabs: true }).catch(() => {}); } catch(e) {}
+
+// ── Firestore helper ──
+function uid() {
+  const u = auth.currentUser;
+  if (!u) throw new Error('Not authenticated');
+  return u.uid;
+}
+
+// ── Unsubscribe handles ──
+let _unsubUrlFilter = null;
+let _unsubDomainExtractor = null;
+let _unsubProfiles = null;
+let _unsubTheme = null;
+let _isOnline = true;
+
+/* ══════════════════════════════════════════════════════
+   ACTIVITY LOG (v2.0)
+═══════════════════════════════════════════════════════ */
+const _activityLog = [];
+const MAX_ACTIVITY_ENTRIES = 50;
+
+function addActivityEntry(msg) {
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  _activityLog.unshift({ time: timeStr, msg });
+  if (_activityLog.length > MAX_ACTIVITY_ENTRIES) _activityLog.pop();
+  renderActivityLog();
+}
+
+function renderActivityLog() {
+  const container = document.getElementById('activity-log');
+  if (!container) return;
+  container.innerHTML = _activityLog.slice(0, 20).map(e =>
+    '<div class="activity-entry"><span class="activity-time">' + e.time + '</span><span class="activity-msg">' + e.msg + '</span></div>'
+  ).join('');
+}
+
+function toggleActivityLog() {
+  const log = document.getElementById('activity-log');
+  const toggle = document.getElementById('activity-log-toggle');
+  if (!log || !toggle) return;
+  log.classList.toggle('expanded');
+  toggle.classList.toggle('expanded');
+}
+
+/* ══════════════════════════════════════════════════════
+   SYNC STATUS BAR (v2.0)
+═══════════════════════════════════════════════════════ */
+function updateSyncStatusBar(opts) {
+  // opts: { status: 'synced'|'saving'|'loading'|'error'|'offline', direction: 'up'|'down'|null }
+  const connEl = document.getElementById('sync-conn');
+  const connText = document.getElementById('sync-conn-text');
+  const dirEl = document.getElementById('sync-dir');
+  const timeEl = document.getElementById('sync-time');
+
+  if (opts.status === 'offline') {
+    if (connEl) { connEl.className = 'sync-conn offline'; }
+    if (connText) connText.textContent = 'Offline';
+    _isOnline = false;
+  } else if (opts.status === 'error') {
+    if (connEl) { connEl.className = 'sync-conn online'; }
+    if (connText) connText.textContent = 'Error';
+  } else {
+    if (connEl) { connEl.className = 'sync-conn online'; }
+    if (connText) connText.textContent = _isOnline ? 'Online' : 'Offline';
+  }
+
+  if (dirEl) {
+    if (opts.direction === 'up') {
+      dirEl.style.display = '';
+      dirEl.className = 'sync-dir uploading';
+      dirEl.textContent = '↑ uploading';
+    } else if (opts.direction === 'down') {
+      dirEl.style.display = '';
+      dirEl.className = 'sync-dir downloading';
+      dirEl.textContent = '↓ downloading';
+    } else {
+      dirEl.style.display = 'none';
+    }
+  }
+
+  if (timeEl) {
+    const now = new Date();
+    timeEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+}
+
+// Monitor connectivity
+window.addEventListener('online', () => { _isOnline = true; updateSyncStatusBar({ status: 'synced' }); addActivityEntry('Connection restored'); });
+window.addEventListener('offline', () => { _isOnline = false; updateSyncStatusBar({ status: 'offline' }); addActivityEntry('Connection lost — working offline'); });
+
+/* ══════════════════════════════════════════════════════
+   PROFILE MANAGEMENT (v2.0)
+═══════════════════════════════════════════════════════ */
+let _profiles = [
+  { id: 'asad', name: 'Asad', createdAt: Date.now() },
+  { id: 'student', name: 'Student', createdAt: Date.now() },
+  { id: 'noor', name: 'Noor', createdAt: Date.now() }
+];
+
+function renderProfileSelector() {
+  const sel = document.getElementById('uf-profile');
+  if (!sel) return;
+  const currentVal = sel.value;
+  sel.innerHTML = _profiles.map(p =>
+    '<option value="' + p.id + '">' + p.name + '</option>'
+  ).join('');
+  // Restore selection if still valid
+  const exists = _profiles.some(p => p.id === currentVal);
+  sel.value = exists ? currentVal : (_profiles[0]?.id || 'asad');
+}
+
+function openProfileModal() {
+  const overlay = document.getElementById('profile-modal-overlay');
+  const body = document.getElementById('profile-modal-body');
+  if (!overlay || !body) return;
+
+  body.innerHTML = _profiles.map(p =>
+    '<div class="profile-list-item" data-id="' + p.id + '">' +
+      '<div class="profile-name"><input type="text" value="' + p.name.replace(/"/g, '&quot;') + '" data-profile-id="' + p.id + '" onchange="renameProfile(\'' + p.id + '\', this.value)" /></div>' +
+      '<div class="profile-actions">' +
+        '<button title="Rename" onclick="focusProfileRename(\'' + p.id + '\')"><i class="fas fa-pen"></i></button>' +
+        '<button title="Delete" class="del-btn" onclick="deleteProfile(\'' + p.id + '\')"><i class="fas fa-trash"></i></button>' +
+      '</div>' +
+    '</div>'
+  ).join('') +
+  '<div class="profile-add-row">' +
+    '<input type="text" id="new-profile-name" placeholder="New profile name…" />' +
+    '<button onclick="addProfile()">Add</button>' +
+  '</div>';
+
+  overlay.classList.add('active');
+}
+
+function closeProfileModal() {
+  document.getElementById('profile-modal-overlay')?.classList.remove('active');
+}
+
+function addProfile() {
+  const input = document.getElementById('new-profile-name');
+  if (!input) return;
+  const name = input.value.trim();
+  if (!name) { toast('Enter a profile name', 'warning'); return; }
+  const id = name.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_');
+  if (_profiles.some(p => p.id === id)) { toast('Profile already exists', 'warning'); return; }
+  _profiles.push({ id, name, createdAt: Date.now() });
+  renderProfileSelector();
+  saveProfilesToCloud();
+  addActivityEntry('Profile "' + name + '" created');
+  openProfileModal(); // Refresh modal
+  toast('Profile "' + name + '" added', 'success');
+}
+
+function renameProfile(id, newName) {
+  const p = _profiles.find(x => x.id === id);
+  if (!p) return;
+  const oldName = p.name;
+  p.name = newName.trim() || oldName;
+  renderProfileSelector();
+  saveProfilesToCloud();
+  addActivityEntry('Profile renamed: "' + oldName + '" → "' + p.name + '"');
+}
+
+function focusProfileRename(id) {
+  const input = document.querySelector('input[data-profile-id="' + id + '"]');
+  if (input) { input.focus(); input.select(); }
+}
+
+function deleteProfile(id) {
+  if (_profiles.length <= 1) { toast('Cannot delete the last profile', 'warning'); return; }
+  const p = _profiles.find(x => x.id === id);
+  if (!p) return;
+  if (!confirm('Delete profile "' + p.name + '"? This cannot be undone.')) return;
+  _profiles = _profiles.filter(x => x.id !== id);
+  // Delete from Firestore
+  if (auth.currentUser) {
+    db.collection('workspace_tools').doc(auth.currentUser.uid)
+      .collection('url_filter_state').doc(id).delete().catch(() => {});
+  }
+  renderProfileSelector();
+  saveProfilesToCloud();
+  addActivityEntry('Profile "' + p.name + '" deleted');
+  openProfileModal(); // Refresh modal
+  toast('Profile deleted', 'success');
+}
+
+function saveProfilesToCloud() {
+  if (!auth.currentUser) return;
+  SecurityGuard.validateDataAccess('workspace_tools');
+  db.collection('workspace_tools').doc(auth.currentUser.uid)
+    .collection('profiles').doc('list').set({
+      profiles: _profiles,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: SESSION_ID
+    }, { merge: true }).catch(err => {
+      console.warn('[Profiles] Save failed:', err.message);
+    });
+}
+
+function loadProfilesFromCloud() {
+  if (!auth.currentUser) return;
+  SecurityGuard.validateDataAccess('workspace_tools');
+  db.collection('workspace_tools').doc(auth.currentUser.uid)
+    .collection('profiles').doc('list').get().then(doc => {
+      if (doc.exists && doc.data().profiles) {
+        _profiles = doc.data().profiles;
+        renderProfileSelector();
+      }
+    }).catch(err => {
+      console.warn('[Profiles] Load failed:', err.message);
+    });
+}
+
+/* ══════════════════════════════════════════════════════
+   INLINE WEB WORKER — High-Performance Processing (v2.0)
+═══════════════════════════════════════════════════════ */
+const workerCode = `
+// ── Web Worker: URL Filtering & Domain Extraction ──
+
+function normalizeDomain(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  let str = raw.trim().toLowerCase();
+  if (!str) return null;
+  if (!/^https?:\\/\\//i.test(str)) str = 'http://' + str;
+  try {
+    const u = new URL(str);
+    let host = u.hostname;
+    if (host.startsWith('www.')) host = host.slice(4);
+    return host || null;
+  } catch { return null; }
+}
+
+function isValidURL(raw) {
+  if (!raw || typeof raw !== 'string') return false;
+  const str = raw.trim();
+  if (!str) return false;
+  let withProto = str;
+  if (!/^https?:\\/\\//i.test(withProto)) withProto = 'http://' + withProto;
+  try { new URL(withProto); return true; } catch { return false; }
+}
+
+// URL Filter: separate duplicates and unique
+function filterDomains(masterLines, secondaryLines) {
+  const secondaryDomainSet = new Set();
+  for (const line of secondaryLines) {
+    const domain = normalizeDomain(line);
+    if (domain) secondaryDomainSet.add(domain);
+  }
+
+  const uniqueArr = [];
+  const dupArr = [];
+  for (const originalLine of masterLines) {
+    const domain = normalizeDomain(originalLine);
+    if (domain && secondaryDomainSet.has(domain)) {
+      dupArr.push(originalLine);
+    } else {
+      uniqueArr.push(originalLine);
+    }
+  }
+
+  return { unique: uniqueArr, duplicates: dupArr, secondaryCount: secondaryDomainSet.size };
+}
+
+// Domain Extractor
+function extractDomains(rawLines, dedup, prefix, suffix) {
+  const domains = [];
+  for (const line of rawLines) {
+    let str = line.trim().toLowerCase();
+    if (!str) continue;
+    if (!/^https?:\\/\\//i.test(str)) str = 'http://' + str;
+    try {
+      const u = new URL(str);
+      let host = u.hostname;
+      if (host.startsWith('www.')) host = host.slice(4);
+      if (host) domains.push(host);
+    } catch { /* skip */ }
+  }
+
+  let finalDomains = dedup ? [...new Set(domains)] : domains;
+
+  const result = finalDomains.map(d => {
+    let line = d;
+    if (prefix) line = prefix + line;
+    if (suffix) line = line + suffix;
+    return line;
+  });
+
+  return { result, totalExtracted: domains.length, afterDedup: finalDomains.length };
+}
+
+// Batch processor for large lists
+function filterDomainsBatched(masterLines, secondaryLines, chunkSize) {
+  chunkSize = chunkSize || 500;
+  const secondaryDomainSet = new Set();
+  for (const line of secondaryLines) {
+    const domain = normalizeDomain(line);
+    if (domain) secondaryDomainSet.add(domain);
+  }
+
+  const uniqueArr = [];
+  const dupArr = [];
+
+  for (let i = 0; i < masterLines.length; i += chunkSize) {
+    const chunk = masterLines.slice(i, i + chunkSize);
+    for (const originalLine of chunk) {
+      const domain = normalizeDomain(originalLine);
+      if (domain && secondaryDomainSet.has(domain)) {
+        dupArr.push(originalLine);
+      } else {
+        uniqueArr.push(originalLine);
+      }
+    }
+  }
+
+  return { unique: uniqueArr, duplicates: dupArr, secondaryCount: secondaryDomainSet.size, totalProcessed: masterLines.length };
+}
+
+// Message handler
+self.onmessage = function(e) {
+  const { type, payload, requestId } = e.data;
+
+  try {
+    if (type === 'FILTER_DOMAINS') {
+      const { masterLines, secondaryLines, chunkSize } = payload;
+      const result = masterLines.length > 1000
+        ? filterDomainsBatched(masterLines, secondaryLines, chunkSize || 500)
+        : filterDomains(masterLines, secondaryLines);
+      self.postMessage({ type: 'FILTER_RESULT', payload: result, requestId });
+    }
+    else if (type === 'EXTRACT_DOMAINS') {
+      const { rawLines, dedup, prefix, suffix } = payload;
+      const result = extractDomains(rawLines, dedup, prefix, suffix);
+      self.postMessage({ type: 'EXTRACT_RESULT', payload: result, requestId });
+    }
+  } catch (err) {
+    self.postMessage({ type: 'ERROR', payload: { message: err.message }, requestId });
+  }
+};
+`;
+
+// Create inline Web Worker via Blob URL
+let _worker = null;
+let _workerRequestId = 0;
+
+function getWorker() {
+  if (!_worker) {
+    try {
+      const blob = new Blob([workerCode], { type: 'application/javascript' });
+      const workerUrl = URL.createObjectURL(blob);
+      _worker = new Worker(workerUrl);
+      _worker.onmessage = handleWorkerMessage;
+      _worker.onerror = handleWorkerError;
+    } catch (err) {
+      console.warn('[Worker] Failed to create Web Worker:', err.message);
+      _worker = null;
+    }
+  }
+  return _worker;
+}
+
+function handleWorkerMessage(e) {
+  const { type, payload, requestId } = e.data;
+
+  if (type === 'FILTER_RESULT') {
+    ufHandleFilterResult(payload, requestId);
+  } else if (type === 'EXTRACT_RESULT') {
+    deHandleExtractResult(payload, requestId);
+  } else if (type === 'ERROR') {
+    console.error('[Worker] Error:', payload.message);
+    toast('Processing error: ' + payload.message, 'error');
+    hideProcessingIndicator('uf');
+    hideProcessingIndicator('de');
+  }
+}
+
+function handleWorkerError(err) {
+  console.error('[Worker] Fatal error:', err.message);
+  toast('Worker error — falling back to main thread', 'error');
+  hideProcessingIndicator('uf');
+  hideProcessingIndicator('de');
+}
+
+// Processing indicator helpers
+function showProcessingIndicator(prefix) {
+  const bar = document.getElementById(prefix + '-processing-bar');
+  const label = document.getElementById(prefix + '-processing-label');
+  if (bar) bar.classList.add('active');
+  if (label) label.classList.add('active');
+}
+
+function hideProcessingIndicator(prefix) {
+  const bar = document.getElementById(prefix + '-processing-bar');
+  const label = document.getElementById(prefix + '-processing-label');
+  if (bar) bar.classList.remove('active');
+  if (label) label.classList.remove('active');
+}
+
+/* ══════════════════════════════════════════════════════
+   AUTH STATE LISTENER
+═══════════════════════════════════════════════════════ */
+auth.onAuthStateChanged(async function(user) {
+  var overlay = document.getElementById('auth-overlay');
+  var appMain = document.getElementById('app-main');
+  var userPill = document.getElementById('user-pill');
+  var logoutBtn = document.getElementById('btn-logout');
+  var emailDisplay = document.getElementById('user-email-display');
+
+  if (user) {
+    if (overlay) overlay.classList.add('hidden');
+    if (appMain) appMain.style.display = '';
+    if (userPill) { userPill.style.display = ''; emailDisplay.textContent = user.email; }
+    if (logoutBtn) logoutBtn.style.display = '';
+
+    // Load profiles from cloud
+    loadProfilesFromCloud();
+
+    // Hydrate URL filter profile for the active tool
+    ufHydrateProfile();
+
+    // Hydrate domain extractor state
+    deHydrateState();
+
+    // Start real-time listeners
+    startUrlFilterListener();
+    startDomainExtractorListener();
+    startProfilesListener();
+    startThemeListener();
+
+    addActivityEntry('Signed in as ' + user.email);
+    updateSyncStatusBar({ status: 'synced' });
+  } else {
+    if (overlay) overlay.classList.remove('hidden');
+    if (appMain) appMain.style.display = 'none';
+    if (userPill) userPill.style.display = 'none';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+    if (emailDisplay) emailDisplay.textContent = '-';
+
+    // Stop real-time listeners
+    stopUrlFilterListener();
+    stopDomainExtractorListener();
+    stopProfilesListener();
+    stopThemeListener();
+  }
+});
+
+/* ══════════════════════════════════════════════════════
+   AUTH FUNCTIONS
+═══════════════════════════════════════════════════════ */
+function switchAuthTab(tab) {
+  var loginTab = document.getElementById('auth-tab-login');
+  var signupTab = document.getElementById('auth-tab-signup');
+  var loginForm = document.getElementById('auth-form-login');
+  var signupForm = document.getElementById('auth-form-signup');
+  var loginErr = document.getElementById('login-error');
+  var signupErr = document.getElementById('signup-error');
+
+  if (tab === 'login') {
+    loginTab.classList.add('active');
+    signupTab.classList.remove('active');
+    loginForm.classList.add('active');
+    signupForm.classList.remove('active');
+    if (loginErr) loginErr.textContent = '';
+    if (signupErr) signupErr.textContent = '';
+  } else {
+    signupTab.classList.add('active');
+    loginTab.classList.remove('active');
+    signupForm.classList.add('active');
+    loginForm.classList.remove('active');
+    if (loginErr) loginErr.textContent = '';
+    if (signupErr) signupErr.textContent = '';
+  }
+}
+
+function firebaseErrorMsg(code) {
+  var msgs = {
+    'auth/user-not-found': 'No account found with this email.',
+    'auth/wrong-password': 'Incorrect password. Please try again.',
+    'auth/invalid-credential': 'Invalid email or password.',
+    'auth/email-already-in-use': 'This email is already registered. Try logging in.',
+    'auth/weak-password': 'Password is too weak. Use at least 6 characters.',
+    'auth/invalid-email': 'Please enter a valid email address.',
+    'auth/too-many-requests': 'Too many attempts. Please wait and try again.',
+    'auth/network-request-failed': 'Network error. Check your connection.',
+    'auth/user-disabled': 'This account has been disabled.',
+  };
+  return msgs[code] || 'Authentication failed. Please try again.';
+}
+
+function handleLogin(e) {
+  e.preventDefault();
+  var email = document.getElementById('login-email').value.trim();
+  var password = document.getElementById('login-password').value;
+  var errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  auth.signInWithEmailAndPassword(email, password)
+    .catch(function(err) {
+      errEl.textContent = firebaseErrorMsg(err.code);
+    });
+}
+
+function handleSignUp(e) {
+  e.preventDefault();
+  var email = document.getElementById('signup-email').value.trim();
+  var password = document.getElementById('signup-password').value;
+  var confirm = document.getElementById('signup-confirm').value;
+  var errEl = document.getElementById('signup-error');
+  errEl.textContent = '';
+  if (password !== confirm) {
+    errEl.textContent = 'Passwords do not match.';
+    return;
+  }
+  auth.createUserWithEmailAndPassword(email, password)
+    .catch(function(err) {
+      errEl.textContent = firebaseErrorMsg(err.code);
+    });
+}
+
+function handleLogout() {
+  auth.signOut();
+}
+
+/* ══════════════════════════════════════════════════════
+   THEME ENGINE
+═══════════════════════════════════════════════════════ */
+(function initTheme() {
+  var cached = sessionStorage.getItem('urltools-theme-cache');
+  if (cached === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+})();
+
+function toggleTheme() {
+  var html = document.documentElement;
+  var isLight = html.getAttribute('data-theme') === 'light';
+  if (isLight) {
+    html.removeAttribute('data-theme');
+    sessionStorage.setItem('urltools-theme-cache', 'dark');
+  } else {
+    html.setAttribute('data-theme', 'light');
+    sessionStorage.setItem('urltools-theme-cache', 'light');
+  }
+  // Persist theme to cloud
+  if (auth.currentUser) {
+    SecurityGuard.validateDataAccess('workspace_tools');
+    db.collection('workspace_tools').doc(auth.currentUser.uid)
+      .collection('preferences').doc('theme').set({
+        theme: isLight ? 'dark' : 'light',
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedBy: SESSION_ID
+      }, { merge: true }).catch(() => {});
+  }
+}
+
+function startThemeListener() {
+  if (!auth.currentUser) return;
+  SecurityGuard.validateDataAccess('workspace_tools');
+  _unsubTheme = db.collection('workspace_tools').doc(auth.currentUser.uid)
+    .collection('preferences').doc('theme')
+    .onSnapshot(doc => {
+      if (doc.metadata.hasPendingWrites) return;
+      if (doc.exists) {
+        const theme = doc.data().theme;
+        if (theme === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light');
+          sessionStorage.setItem('urltools-theme-cache', 'light');
+        } else {
+          document.documentElement.removeAttribute('data-theme');
+          sessionStorage.setItem('urltools-theme-cache', 'dark');
+        }
+      }
+    }, err => {
+      console.warn('[Theme] Listener error:', err.message);
+    });
+}
+
+function stopThemeListener() {
+  if (_unsubTheme) { _unsubTheme(); _unsubTheme = null; }
+}
+
+/* ══════════════════════════════════════════════════════
+   TOOL SWITCHING
+═══════════════════════════════════════════════════════ */
+function showTool(toolId) {
+  // Hide all tool pages
+  document.querySelectorAll('.tool-page').forEach(p => p.classList.remove('active'));
+  // Show selected tool
+  const page = document.getElementById('tool-page-' + toolId);
+  if (page) page.classList.add('active');
+  // Update sidebar nav
+  document.querySelectorAll('.sidebar .nav-item').forEach(n => n.classList.remove('active'));
+  const navEl = document.getElementById('nav-' + toolId);
+  if (navEl) navEl.classList.add('active');
+  // Hydrate URL Filters profile when switching to that tool
+  if (toolId === 'url-filters') ufHydrateProfile();
+  if (toolId === 'domain-extractor') deHydrateState();
+}
+
+function setMobileNav(el) {
+  document.querySelectorAll('.mobile-nav-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+
+/* ══════════════════════════════════════════════════════
+   CLEAR ALL DATA
+═══════════════════════════════════════════════════════ */
+function clearAllToolData() {
+  if (!confirm('Clear all data in both tools? This cannot be undone.')) return;
+
+  // URL Filters
+  const mainInput = document.getElementById('uf-main-input');
+  const removeInput = document.getElementById('uf-remove-input');
+  const uniqueOut = document.getElementById('uf-unique-output');
+  const dupOut = document.getElementById('uf-dup-output');
+  if (mainInput) mainInput.value = '';
+  if (removeInput) removeInput.value = '';
+  if (uniqueOut) uniqueOut.value = '';
+  if (dupOut) dupOut.value = '';
+  ufUpdateLineCount('uf-main-input', 'uf-main-count');
+  ufUpdateLineCount('uf-remove-input', 'uf-remove-count');
+  ufUpdateLineCount('uf-unique-output', 'uf-unique-count');
+  ufUpdateLineCount('uf-dup-output', 'uf-dup-count');
+  const validationRow = document.getElementById('uf-validation-row');
+  if (validationRow) validationRow.innerHTML = '';
+
+  // Domain Extractor
+  const deInput = document.getElementById('de-input');
+  const deOutput = document.getElementById('de-output');
+  if (deInput) deInput.value = '';
+  if (deOutput) deOutput.value = '';
+  deUpdateLineCount();
+  deUpdateOutputCount();
+
+  // Clear Firestore URL filter state for all profiles
+  if (auth.currentUser) {
+    _profiles.forEach(profile => {
+      db.collection('workspace_tools').doc(auth.currentUser.uid)
+        .collection('url_filter_state').doc(profile.id).delete().catch(() => {});
+    });
+    db.collection('workspace_tools').doc(auth.currentUser.uid)
+      .collection('domain_extractor_state').doc('config').delete().catch(() => {});
+  }
+
+  addActivityEntry('All tool data cleared');
+  toast('All tool data cleared', 'success');
+}
+
+/* ══════════════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════════════ */
+function toast(msg, type='') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  const icon = type === 'success' ? 'fa-check' : type === 'error' ? 'fa-exclamation-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+  t.innerHTML = '<i class="fas ' + icon + '"></i> ' + msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(20px)'; t.style.transition = '0.3s'; setTimeout(() => t.remove(), 300); }, 3000);
+}
+
+/* ══════════════════════════════════════════════════════
+   URL FILTER & PROFILE MANAGER — Workspace Tool
+═══════════════════════════════════════════════════════ */
+
+// ── State ──
+let _ufDebounceTimer = null;
+const _UF_DEBOUNCE_MS = 250;
+let _ufIsSaving = false;
+let _ufCurrentRequestId = 0;
+
+// ── Helper: normalize a raw URL string to its root domain (main thread fallback) ──
+function ufNormalizeDomain(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  let str = raw.trim().toLowerCase();
+  if (!str) return null;
+  if (!/^https?:\/\//i.test(str)) str = 'http://' + str;
+  try {
+    const u = new URL(str);
+    let host = u.hostname;
+    if (host.startsWith('www.')) host = host.slice(4);
+    return host || null;
+  } catch {
+    return null;
+  }
+}
+
+// ── Helper: check if a string is a structurally valid URL ──
+function ufIsValidURL(raw) {
+  if (!raw || typeof raw !== 'string') return false;
+  const str = raw.trim();
+  if (!str) return false;
+  let withProto = str;
+  if (!/^https?:\/\//i.test(withProto)) withProto = 'http://' + withProto;
+  try { new URL(withProto); return true; } catch { return false; }
+}
+
+// ── Line counter updater ──
+function ufUpdateLineCount(textareaId, countId) {
+  const ta = document.getElementById(textareaId);
+  const el = document.getElementById(countId);
+  if (!ta || !el) return;
+  const count = ta.value.split('\n').filter(l => l.trim() !== '').length;
+  const digitEl = el.querySelector('.counter-digit');
+  if (digitEl && parseInt(digitEl.textContent) === count) return;
+  if (digitEl) {
+    digitEl.textContent = count;
+  } else {
+    el.textContent = '';
+    const span = document.createElement('span');
+    span.className = 'counter-digit';
+    span.textContent = count;
+    el.appendChild(span);
+    el.appendChild(document.createTextNode(' line' + (count !== 1 ? 's' : '')));
+  }
+  const textNodes = Array.from(el.childNodes).filter(n => n.nodeType === 3);
+  textNodes.forEach(n => n.textContent = ' line' + (count !== 1 ? 's' : ''));
+}
+
+// ── Live validation on Main List input ──
+let _ufMainDebounce = null;
+function ufOnMainInput() {
+  ufUpdateLineCount('uf-main-input', 'uf-main-count');
+  clearTimeout(_ufMainDebounce);
+  _ufMainDebounce = setTimeout(() => {
+    const ta = document.getElementById('uf-main-input');
+    const row = document.getElementById('uf-validation-row');
+    if (!ta || !row) return;
+    const lines = ta.value.split('\n').filter(l => l.trim() !== '');
+    let validCount = 0, invalidCount = 0, firstInvalid = '';
+    for (const line of lines) {
+      if (ufIsValidURL(line)) { validCount++; }
+      else { invalidCount++; if (!firstInvalid) firstInvalid = line.trim(); }
+    }
+    let html = '';
+    if (lines.length > 0) {
+      html += '<span class="uf-val-badge valid"><i class="fas fa-check" style="font-size:9px"></i> ' + validCount + ' valid</span>';
+      if (invalidCount > 0) {
+        html += '<span class="uf-val-badge invalid"><i class="fas fa-times" style="font-size:9px"></i> ' + invalidCount + ' invalid';
+        if (firstInvalid) html += ' <span class="val-preview" title="' + firstInvalid.replace(/"/g, '&quot;') + '">(' + firstInvalid + ')</span>';
+        html += '</span>';
+      }
+    }
+    row.innerHTML = html;
+    ufAutoSave();
+  }, 200);
+}
+
+let _ufSecondaryDebounce = null;
+function ufDebouncedSecondaryInput() {
+  ufUpdateLineCount('uf-remove-input', 'uf-remove-count');
+  clearTimeout(_ufSecondaryDebounce);
+  _ufSecondaryDebounce = setTimeout(() => { ufAutoSave(); }, 250);
+}
+
+// ── Copy button handler ──
+function ufCopyField(textareaId, btnEl) {
+  const ta = document.getElementById(textareaId);
+  if (!ta || !ta.value) return;
+  navigator.clipboard.writeText(ta.value).then(() => {
+    btnEl.textContent = 'Copied!';
+    btnEl.classList.add('copied');
+    setTimeout(() => {
+      btnEl.textContent = 'Copy';
+      btnEl.classList.remove('copied');
+    }, 2000);
+  }).catch(() => {
+    ta.select();
+    document.execCommand('copy');
+    btnEl.textContent = 'Copied!';
+    btnEl.classList.add('copied');
+    setTimeout(() => {
+      btnEl.textContent = 'Copy';
+      btnEl.classList.remove('copied');
+    }, 2000);
+  });
+}
+
+// ── Optimistic Auto-Save URL Filter profile to Firestore (v2.0) ──
+function ufAutoSave() {
+  clearTimeout(_ufDebounceTimer);
+  _ufDebounceTimer = setTimeout(() => {
+    const profile = document.getElementById('uf-profile')?.value || 'asad';
+    const mainText = document.getElementById('uf-main-input')?.value || '';
+    const removeText = document.getElementById('uf-remove-input')?.value || '';
+    const uniqueText = document.getElementById('uf-unique-output')?.value || '';
+    const dupText = document.getElementById('uf-dup-output')?.value || '';
+    const badge = document.getElementById('uf-sync-badge');
+    const syncText = document.getElementById('uf-sync-text');
+
+    // Optimistic UI: immediately show "Saving…"
+    if (badge) { badge.className = 'uf-sync-badge syncing'; }
+    if (syncText) syncText.textContent = 'Saving…';
+    updateSyncStatusBar({ status: 'saving', direction: 'up' });
+
+    try {
+      SecurityGuard.validateDataAccess('workspace_tools');
+      _ufIsSaving = true;
+      if (auth.currentUser) {
+        db.collection('workspace_tools').doc(auth.currentUser.uid)
+          .collection('url_filter_state').doc(profile).set({
+          mainList: mainText,
+          removeList: removeText,
+          uniqueOutput: uniqueText,
+          duplicateOutput: dupText,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedBy: SESSION_ID
+        }, { merge: true }).then(() => {
+          _ufIsSaving = false;
+          if (badge) { badge.className = 'uf-sync-badge synced'; }
+          if (syncText) syncText.textContent = 'Synced';
+          updateSyncStatusBar({ status: 'synced' });
+          addActivityEntry('Profile "' + profile + '" saved');
+        }).catch(err => {
+          _ufIsSaving = false;
+          // Don't rollback — user's input is sacred
+          if (badge) { badge.className = 'uf-sync-badge error'; }
+          if (syncText) syncText.textContent = 'Error';
+          updateSyncStatusBar({ status: 'error' });
+          toast('Save failed — data kept locally', 'error');
+          console.warn('[URL Filter] Autosave failed:', err.message);
+          // Auto-resolve to "synced" after 3s to not alarm user
+          setTimeout(() => {
+            if (badge && badge.classList.contains('error')) {
+              badge.className = 'uf-sync-badge synced';
+              if (syncText) syncText.textContent = 'Synced';
+            }
+          }, 3000);
+        });
+      } else {
+        _ufIsSaving = false;
+        if (badge) { badge.className = 'uf-sync-badge synced'; }
+        if (syncText) syncText.textContent = 'Synced';
+      }
+    } catch (err) {
+      _ufIsSaving = false;
+      console.warn('URL Filter autosave failed:', err);
+      if (badge) { badge.className = 'uf-sync-badge error'; }
+      if (syncText) syncText.textContent = 'Error';
+    }
+  }, _UF_DEBOUNCE_MS);
+}
+
+// ── Hydrate URL Filter profile from Firestore ──
+function ufHydrateProfile() {
+  const profile = document.getElementById('uf-profile')?.value || 'asad';
+  const mainTa = document.getElementById('uf-main-input');
+  const removeTa = document.getElementById('uf-remove-input');
+  const uniqueTa = document.getElementById('uf-unique-output');
+  const dupTa = document.getElementById('uf-dup-output');
+  const badge = document.getElementById('uf-sync-badge');
+  const syncText = document.getElementById('uf-sync-text');
+  try {
+    if (badge) { badge.className = 'uf-sync-badge syncing'; }
+    if (syncText) syncText.textContent = 'Loading…';
+    updateSyncStatusBar({ status: 'loading', direction: 'down' });
+    SecurityGuard.validateDataAccess('workspace_tools');
+    if (auth.currentUser) {
+      db.collection('workspace_tools').doc(auth.currentUser.uid)
+        .collection('url_filter_state').doc(profile).get().then(doc => {
+          if (doc.exists) {
+            const cloudData = doc.data();
+            if (mainTa && document.activeElement !== mainTa) mainTa.value = cloudData.mainList || '';
+            if (removeTa && document.activeElement !== removeTa) removeTa.value = cloudData.removeList || '';
+            if (uniqueTa && document.activeElement !== uniqueTa) uniqueTa.value = cloudData.uniqueOutput || '';
+            if (dupTa && document.activeElement !== dupTa) dupTa.value = cloudData.duplicateOutput || '';
+            ufOnMainInput();
+            ufUpdateLineCount('uf-remove-input', 'uf-remove-count');
+            ufUpdateLineCount('uf-unique-output', 'uf-unique-count');
+            ufUpdateLineCount('uf-dup-output', 'uf-dup-count');
+          } else {
+            if (mainTa && document.activeElement !== mainTa) mainTa.value = '';
+            if (removeTa && document.activeElement !== removeTa) removeTa.value = '';
+            if (uniqueTa) uniqueTa.value = '';
+            if (dupTa) dupTa.value = '';
+          }
+          if (badge) { badge.className = 'uf-sync-badge synced'; }
+          if (syncText) syncText.textContent = 'Synced';
+          updateSyncStatusBar({ status: 'synced' });
+          addActivityEntry('Profile "' + profile + '" loaded');
+        }).catch(() => {
+          if (badge) { badge.className = 'uf-sync-badge error'; }
+          if (syncText) syncText.textContent = 'Error';
+          updateSyncStatusBar({ status: 'error' });
+        });
+    } else {
+      if (mainTa) mainTa.value = '';
+      if (removeTa) removeTa.value = '';
+      if (badge) { badge.className = 'uf-sync-badge synced'; }
+      if (syncText) syncText.textContent = 'Synced';
+    }
+    ufOnMainInput();
+    ufUpdateLineCount('uf-remove-input', 'uf-remove-count');
+    ufUpdateLineCount('uf-unique-output', 'uf-unique-count');
+    ufUpdateLineCount('uf-dup-output', 'uf-dup-count');
+  } catch (err) {
+    console.warn('URL Filter hydrate failed:', err);
+    if (badge) { badge.className = 'uf-sync-badge error'; }
+    if (syncText) syncText.textContent = 'Error';
+  }
+}
+
+// ── Profile switch handler ──
+function ufSwitchProfile() {
+  const uniqueOut = document.getElementById('uf-unique-output');
+  const dupOut = document.getElementById('uf-dup-output');
+  if (uniqueOut) uniqueOut.value = '';
+  if (dupOut) dupOut.value = '';
+  ufUpdateLineCount('uf-unique-output', 'uf-unique-count');
+  ufUpdateLineCount('uf-dup-output', 'uf-dup-count');
+  ufHydrateProfile();
+}
+
+// ── High-Performance URL-to-Domain Filtration Pipeline (v2.0 — Web Worker) ──
+function ufFilterDomains() {
+  const mainTa = document.getElementById('uf-main-input');
+  const removeTa = document.getElementById('uf-remove-input');
+  if (!mainTa || !removeTa) return;
+
+  const masterLines = mainTa.value.split('\n').map(l => l.trim()).filter(l => l !== '');
+  const secondaryLines = removeTa.value.split('\n').map(l => l.trim()).filter(l => l !== '');
+
+  if (masterLines.length === 0) {
+    toast('Paste URLs into the Master URL List first', 'warning');
+    return;
+  }
+
+  // For small lists (<100), run synchronously on main thread (faster than Worker message overhead)
+  if (masterLines.length < 100) {
+    ufFilterDomainsSync(masterLines, secondaryLines);
+    return;
+  }
+
+  // For large lists, dispatch to Web Worker
+  const worker = getWorker();
+  if (!worker) {
+    // Fallback to main thread if Worker not available
+    ufFilterDomainsSync(masterLines, secondaryLines);
+    return;
+  }
+
+  showProcessingIndicator('uf');
+  _ufCurrentRequestId = Date.now();
+  worker.postMessage({
+    type: 'FILTER_DOMAINS',
+    payload: { masterLines, secondaryLines, chunkSize: 500 },
+    requestId: _ufCurrentRequestId
+  });
+}
+
+// Synchronous fallback for small lists
+function ufFilterDomainsSync(masterLines, secondaryLines) {
+  const secondaryDomainSet = new Set();
+  for (const line of secondaryLines) {
+    const domain = ufNormalizeDomain(line);
+    if (domain) secondaryDomainSet.add(domain);
+  }
+
+  const uniqueArr = [];
+  const dupArr = [];
+  for (const originalLine of masterLines) {
+    const domain = ufNormalizeDomain(originalLine);
+    if (domain && secondaryDomainSet.has(domain)) {
+      dupArr.push(originalLine);
+    } else {
+      uniqueArr.push(originalLine);
+    }
+  }
+
+  const uniqueOut = document.getElementById('uf-unique-output');
+  const dupOut = document.getElementById('uf-dup-output');
+  if (uniqueOut) uniqueOut.value = uniqueArr.join('\n');
+  if (dupOut) dupOut.value = dupArr.join('\n');
+
+  ufUpdateLineCount('uf-unique-output', 'uf-unique-count');
+  ufUpdateLineCount('uf-dup-output', 'uf-dup-count');
+
+  const msg = secondaryDomainSet.size > 0
+    ? masterLines.length + ' URLs processed — ' + uniqueArr.length + ' unique, ' + dupArr.length + ' duplicates (' + secondaryDomainSet.size + ' comparison domains)'
+    : masterLines.length + ' URLs processed — No secondary domains specified, all passed as unique';
+  toast(msg, uniqueArr.length > 0 ? 'success' : 'warning');
+  ufAutoSave();
+}
+
+// Handle Web Worker filter result
+function ufHandleFilterResult(payload, requestId) {
+  if (requestId !== _ufCurrentRequestId) return; // Stale result
+  hideProcessingIndicator('uf');
+
+  const uniqueOut = document.getElementById('uf-unique-output');
+  const dupOut = document.getElementById('uf-dup-output');
+  if (uniqueOut) uniqueOut.value = payload.unique.join('\n');
+  if (dupOut) dupOut.value = payload.duplicates.join('\n');
+
+  ufUpdateLineCount('uf-unique-output', 'uf-unique-count');
+  ufUpdateLineCount('uf-dup-output', 'uf-dup-count');
+
+  const msg = payload.secondaryCount > 0
+    ? payload.totalProcessed + ' URLs processed — ' + payload.unique.length + ' unique, ' + payload.duplicates.length + ' duplicates (' + payload.secondaryCount + ' comparison domains)'
+    : (payload.totalProcessed || payload.unique.length + payload.duplicates.length) + ' URLs processed — No secondary domains specified, all passed as unique';
+  toast(msg, payload.unique.length > 0 ? 'success' : 'warning');
+  ufAutoSave();
+}
+
+// ── Drag & Drop file handlers for URL Filters ──
+(function ufInitDragDrop() {
+  const pairs = [
+    { taId: 'uf-main-input', handler: ufOnMainInput },
+    { taId: 'uf-remove-input', handler: () => ufUpdateLineCount('uf-remove-input', 'uf-remove-count') }
+  ];
+  function bind() {
+    for (const { taId, handler } of pairs) {
+      const ta = document.getElementById(taId);
+      if (!ta) continue;
+      ta.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); ta.classList.add('drag-over'); });
+      ta.addEventListener('dragleave', e => { e.preventDefault(); e.stopPropagation(); ta.classList.remove('drag-over'); });
+      ta.addEventListener('drop', e => {
+        e.preventDefault(); e.stopPropagation();
+        ta.classList.remove('drag-over');
+        const files = e.dataTransfer.files;
+        if (!files || files.length === 0) return;
+        for (const file of files) {
+          if (!file.name.match(/\.(txt|csv)$/i)) continue;
+          const reader = new FileReader();
+          reader.onload = ev => {
+            const text = ev.target.result;
+            const existing = ta.value.trim();
+            ta.value = existing ? existing + '\n' + text.trim() : text.trim();
+            handler();
+          };
+          reader.readAsText(file);
+        }
+      });
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bind);
+  } else {
+    setTimeout(bind, 500);
+  }
+})();
+
+/* ══════════════════════════════════════════════════════
+   DOMAIN EXTRACTOR — Workspace Tool (v2.0 — Cloud Sync + Worker)
+═══════════════════════════════════════════════════════ */
+
+// ── State ──
+let _deDebounceTimer = null;
+const _DE_DEBOUNCE_MS = 250;
+let _deConfigDebounceTimer = null;
+const _DE_CONFIG_DEBOUNCE_MS = 150;
+let _deIsSaving = false;
+let _deCurrentRequestId = 0;
+
+// ── Line counter updater ──
+let _deInputLastCount = -1;
+let _deInputCountTimer = null;
+function deUpdateLineCount() {
+  clearTimeout(_deInputCountTimer);
+  _deInputCountTimer = setTimeout(() => {
+    const ta = document.getElementById('de-input');
+    const el = document.getElementById('de-input-count');
+    if (!ta || !el) return;
+    const count = ta.value.split('\n').filter(l => l.trim() !== '').length;
+    if (count === _deInputLastCount) return;
+    _deInputLastCount = count;
+    el.textContent = count + ' line' + (count !== 1 ? 's' : '');
+  }, 100);
+}
+
+// ── Update output line count ──
+let _deOutputLastCount = -1;
+let _deOutputCountTimer = null;
+function deUpdateOutputCount() {
+  clearTimeout(_deOutputCountTimer);
+  _deOutputCountTimer = setTimeout(() => {
+    const ta = document.getElementById('de-output');
+    const el = document.getElementById('de-output-count');
+    if (!ta || !el) return;
+    const count = ta.value.split('\n').filter(l => l.trim() !== '').length;
+    if (count === _deOutputLastCount) return;
+    _deOutputLastCount = count;
+    el.textContent = count + ' line' + (count !== 1 ? 's' : '');
+  }, 100);
+}
+
+// ── Domain Extractor input handler (with debounced auto-save) ──
+function deOnInput() {
+  deUpdateLineCount();
+  clearTimeout(_deDebounceTimer);
+  _deDebounceTimer = setTimeout(() => { deAutoSave(); }, _DE_DEBOUNCE_MS);
+}
+
+// ── Domain Extractor config input handler (150ms debounce) ──
+function deDebouncedConfigInput() {
+  clearTimeout(_deConfigDebounceTimer);
+  _deConfigDebounceTimer = setTimeout(() => { deAutoSave(); }, _DE_CONFIG_DEBOUNCE_MS);
+}
+
+// ── Auto-save config change (checkbox) ──
+function deAutoSaveConfig() {
+  deAutoSave();
+}
+
+// ── Optimistic Auto-Save Domain Extractor state to Firestore (v2.0) ──
+function deAutoSave() {
+  clearTimeout(_deDebounceTimer);
+  const inputText = document.getElementById('de-input')?.value || '';
+  const outputText = document.getElementById('de-output')?.value || '';
+  const dedup = document.getElementById('de-dedup')?.checked ?? true;
+  const prefix = document.getElementById('de-prefix')?.value || '';
+  const suffix = document.getElementById('de-suffix')?.value || '';
+
+  try {
+    SecurityGuard.validateDataAccess('workspace_tools');
+    _deIsSaving = true;
+    if (auth.currentUser) {
+      updateSyncStatusBar({ status: 'saving', direction: 'up' });
+      db.collection('workspace_tools').doc(auth.currentUser.uid)
+        .collection('domain_extractor_state').doc('config').set({
+        inputText: inputText,
+        outputText: outputText,
+        dedup: dedup,
+        prefix: prefix,
+        suffix: suffix,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedBy: SESSION_ID
+      }, { merge: true }).then(() => {
+        _deIsSaving = false;
+        updateSyncStatusBar({ status: 'synced' });
+        addActivityEntry('Domain Extractor state saved');
+      }).catch(err => {
+        _deIsSaving = false;
+        updateSyncStatusBar({ status: 'error' });
+        toast('Domain Extractor save failed — data kept locally', 'error');
+        console.warn('[DE] Autosave failed:', err.message);
+      });
+    } else {
+      _deIsSaving = false;
+    }
+  } catch (err) {
+    _deIsSaving = false;
+    console.warn('[DE] Autosave failed:', err);
+  }
+}
+
+// ── Hydrate Domain Extractor state from Firestore ──
+function deHydrateState() {
+  const inputTa = document.getElementById('de-input');
+  const outputTa = document.getElementById('de-output');
+  const dedupCb = document.getElementById('de-dedup');
+  const prefixIn = document.getElementById('de-prefix');
+  const suffixIn = document.getElementById('de-suffix');
+
+  try {
+    SecurityGuard.validateDataAccess('workspace_tools');
+    if (auth.currentUser) {
+      updateSyncStatusBar({ status: 'loading', direction: 'down' });
+      db.collection('workspace_tools').doc(auth.currentUser.uid)
+        .collection('domain_extractor_state').doc('config').get().then(doc => {
+          if (doc.exists) {
+            const d = doc.data();
+            if (inputTa && document.activeElement !== inputTa) inputTa.value = d.inputText || '';
+            if (outputTa && document.activeElement !== outputTa) outputTa.value = d.outputText || '';
+            if (dedupCb) dedupCb.checked = d.dedup !== false;
+            if (prefixIn && document.activeElement !== prefixIn) prefixIn.value = d.prefix || '';
+            if (suffixIn && document.activeElement !== suffixIn) suffixIn.value = d.suffix || '';
+            deUpdateLineCount();
+            deUpdateOutputCount();
+          }
+          updateSyncStatusBar({ status: 'synced' });
+          addActivityEntry('Domain Extractor state loaded');
+        }).catch(err => {
+          updateSyncStatusBar({ status: 'error' });
+          console.warn('[DE] Hydrate failed:', err.message);
+        });
+    }
+    deUpdateLineCount();
+    deUpdateOutputCount();
+  } catch (err) {
+    console.warn('[DE] Hydrate failed:', err);
+  }
+}
+
+// ── High-Performance O(N) Domain Extraction & Affix Algorithm (v2.0 — Web Worker) ──
+function deExtractDomains() {
+  const inputTa = document.getElementById('de-input');
+  const outputTa = document.getElementById('de-output');
+  if (!inputTa || !outputTa) return;
+
+  const rawLines = inputTa.value.split('\n').filter(l => l.trim() !== '');
+  if (rawLines.length === 0) {
+    toast('Paste URLs or text into the input field first', 'warning');
+    return;
+  }
+
+  const dedupChecked = document.getElementById('de-dedup')?.checked ?? true;
+  const prefix = (document.getElementById('de-prefix')?.value || '').trim();
+  const suffix = (document.getElementById('de-suffix')?.value || '').trim();
+
+  // For small lists (<100), run synchronously on main thread
+  if (rawLines.length < 100) {
+    deExtractDomainsSync(rawLines, dedupChecked, prefix, suffix);
+    return;
+  }
+
+  // For large lists, dispatch to Web Worker
+  const worker = getWorker();
+  if (!worker) {
+    deExtractDomainsSync(rawLines, dedupChecked, prefix, suffix);
+    return;
+  }
+
+  showProcessingIndicator('de');
+  _deCurrentRequestId = Date.now();
+  worker.postMessage({
+    type: 'EXTRACT_DOMAINS',
+    payload: { rawLines, dedup: dedupChecked, prefix, suffix },
+    requestId: _deCurrentRequestId
+  });
+}
+
+// Synchronous fallback for small lists
+function deExtractDomainsSync(rawLines, dedupChecked, prefix, suffix) {
+  const domains = [];
+  for (const line of rawLines) {
+    let str = line.trim().toLowerCase();
+    if (!str) continue;
+    if (!/^https?:\/\//i.test(str)) str = 'http://' + str;
+    try {
+      const u = new URL(str);
+      let host = u.hostname;
+      if (host.startsWith('www.')) host = host.slice(4);
+      if (host) domains.push(host);
+    } catch { /* skip */ }
+  }
+
+  if (domains.length === 0) {
+    toast('No valid domains could be extracted from the input', 'warning');
+    return;
+  }
+
+  let finalDomains = dedupChecked ? [...new Set(domains)] : domains;
+
+  const result = finalDomains.map(d => {
+    let line = d;
+    if (prefix) line = prefix + line;
+    if (suffix) line = line + suffix;
+    return line;
+  });
+
+  const outputTa = document.getElementById('de-output');
+  if (outputTa) outputTa.value = result.join('\n');
+  deUpdateOutputCount();
+
+  const dupInfo = dedupChecked && finalDomains.length < domains.length
+    ? ' | ' + (domains.length - finalDomains.length) + ' duplicates removed'
+    : '';
+  toast(domains.length + ' domains extracted' + dupInfo, 'success');
+  deAutoSave();
+}
+
+// Handle Web Worker extract result
+function deHandleExtractResult(payload, requestId) {
+  if (requestId !== _deCurrentRequestId) return; // Stale result
+  hideProcessingIndicator('de');
+
+  const outputTa = document.getElementById('de-output');
+  if (outputTa) outputTa.value = payload.result.join('\n');
+  deUpdateOutputCount();
+
+  const dupInfo = payload.afterDedup < payload.totalExtracted
+    ? ' | ' + (payload.totalExtracted - payload.afterDedup) + ' duplicates removed'
+    : '';
+  toast(payload.totalExtracted + ' domains extracted' + dupInfo, 'success');
+  deAutoSave();
+}
+
+// ── Copy to Clipboard ──
+function deCopyOutput() {
+  const ta = document.getElementById('de-output');
+  const btn = document.getElementById('de-copy-btn');
+  if (!ta || !ta.value) {
+    toast('Nothing to copy — extract domains first', 'warning');
+    return;
+  }
+  navigator.clipboard.writeText(ta.value).then(() => {
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.innerHTML = originalHTML;
+      btn.classList.remove('copied');
+    }, 2000);
+  }).catch(() => {
+    ta.select();
+    document.execCommand('copy');
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.innerHTML = originalHTML;
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+
+// ── Download as .TXT ──
+function deDownloadTxt() {
+  const ta = document.getElementById('de-output');
+  if (!ta || !ta.value) {
+    toast('Nothing to download — extract domains first', 'warning');
+    return;
+  }
+  const blob = new Blob([ta.value], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'extracted_domains.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Downloaded extracted_domains.txt', 'success');
+}
+
+// ── Drag & Drop file support for Domain Extractor input ──
+(function() {
+  const pairs = [
+    { taId: 'de-input', handler: deOnInput }
+  ];
+  function bind() {
+    for (const { taId, handler } of pairs) {
+      const ta = document.getElementById(taId);
+      if (!ta) continue;
+      ta.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); ta.classList.add('drag-over'); });
+      ta.addEventListener('dragleave', e => { e.preventDefault(); e.stopPropagation(); ta.classList.remove('drag-over'); });
+      ta.addEventListener('drop', e => {
+        e.preventDefault(); e.stopPropagation();
+        ta.classList.remove('drag-over');
+        const files = e.dataTransfer.files;
+        if (!files || files.length === 0) return;
+        for (const file of files) {
+          if (!file.name.match(/\.(txt|csv)$/i)) continue;
+          const reader = new FileReader();
+          reader.onload = ev => {
+            const text = ev.target.result;
+            const existing = ta.value.trim();
+            ta.value = existing ? existing + '\n' + text.trim() : text.trim();
+            handler();
+          };
+          reader.readAsText(file);
+        }
+      });
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bind);
+  } else {
+    setTimeout(bind, 500);
+  }
+})();
+
+/* ══════════════════════════════════════════════════════
+   REAL-TIME URL FILTER PIPELINE — Cross-Device Cloud Sync (v2.0)
+═══════════════════════════════════════════════════════ */
+
+// ── Start real-time listener for URL filter state ──
+function startUrlFilterListener() {
+  if (!auth.currentUser) return;
+  SecurityGuard.validateDataAccess('workspace_tools');
+
+  _unsubUrlFilter = db.collection('workspace_tools').doc(auth.currentUser.uid)
+    .collection('url_filter_state')
+    .onSnapshot(snapshot => {
+      // Skip if we're the one who wrote this
+      if (snapshot.metadata.hasPendingWrites) return;
+
+      snapshot.docChanges().forEach(change => {
+        if (change.type === 'added' || change.type === 'modified') {
+          const docProfile = change.doc.id;
+          const data = change.doc.data();
+
+          // Ignore writes from this session
+          if (data.updatedBy === SESSION_ID) return;
+
+          const currentProfile = document.getElementById('uf-profile')?.value || 'asad';
+          if (docProfile !== currentProfile) return;
+
+          const mainTa = document.getElementById('uf-main-input');
+          const removeTa = document.getElementById('uf-remove-input');
+          const uniqueTa = document.getElementById('uf-unique-output');
+          const dupTa = document.getElementById('uf-dup-output');
+
+          // Only update if user is NOT actively typing
+          if (mainTa && document.activeElement !== mainTa) mainTa.value = data.mainList || '';
+          if (removeTa && document.activeElement !== removeTa) removeTa.value = data.removeList || '';
+          if (uniqueTa && document.activeElement !== uniqueTa) uniqueTa.value = data.uniqueOutput || '';
+          if (dupTa && document.activeElement !== dupTa) dupTa.value = data.duplicateOutput || '';
+
+          ufOnMainInput();
+          ufUpdateLineCount('uf-remove-input', 'uf-remove-count');
+          ufUpdateLineCount('uf-unique-output', 'uf-unique-count');
+          ufUpdateLineCount('uf-dup-output', 'uf-dup-count');
+
+          updateSyncStatusBar({ status: 'synced', direction: 'down' });
+          addActivityEntry('Profile "' + docProfile + '" synced from another device');
+        }
+      });
+    }, err => {
+      console.warn('[URL Filter] Listener error:', err.message);
+      updateSyncStatusBar({ status: 'error' });
+    });
+}
+
+// ── Stop URL Filter listener ──
+function stopUrlFilterListener() {
+  if (_unsubUrlFilter) { _unsubUrlFilter(); _unsubUrlFilter = null; }
+}
+
+/* ══════════════════════════════════════════════════════
+   REAL-TIME DOMAIN EXTRACTOR PIPELINE — Cross-Device Cloud Sync (v2.0)
+═══════════════════════════════════════════════════════ */
+
+function startDomainExtractorListener() {
+  if (!auth.currentUser) return;
+  SecurityGuard.validateDataAccess('workspace_tools');
+
+  _unsubDomainExtractor = db.collection('workspace_tools').doc(auth.currentUser.uid)
+    .collection('domain_extractor_state').doc('config')
+    .onSnapshot(doc => {
+      // Skip if we're the one who wrote this
+      if (doc.metadata.hasPendingWrites) return;
+      if (!doc.exists) return;
+
+      const data = doc.data();
+      // Ignore writes from this session
+      if (data.updatedBy === SESSION_ID) return;
+
+      const inputTa = document.getElementById('de-input');
+      const outputTa = document.getElementById('de-output');
+      const dedupCb = document.getElementById('de-dedup');
+      const prefixIn = document.getElementById('de-prefix');
+      const suffixIn = document.getElementById('de-suffix');
+
+      // Only update if user is NOT actively typing
+      if (inputTa && document.activeElement !== inputTa) inputTa.value = data.inputText || '';
+      if (outputTa && document.activeElement !== outputTa) outputTa.value = data.outputText || '';
+      if (dedupCb) dedupCb.checked = data.dedup !== false;
+      if (prefixIn && document.activeElement !== prefixIn) prefixIn.value = data.prefix || '';
+      if (suffixIn && document.activeElement !== suffixIn) suffixIn.value = data.suffix || '';
+
+      deUpdateLineCount();
+      deUpdateOutputCount();
+
+      updateSyncStatusBar({ status: 'synced', direction: 'down' });
+      addActivityEntry('Domain Extractor synced from another device');
+    }, err => {
+      console.warn('[Domain Extractor] Listener error:', err.message);
+      updateSyncStatusBar({ status: 'error' });
+    });
+}
+
+function stopDomainExtractorListener() {
+  if (_unsubDomainExtractor) { _unsubDomainExtractor(); _unsubDomainExtractor = null; }
+}
+
+/* ══════════════════════════════════════════════════════
+   REAL-TIME PROFILES LISTENER (v2.0)
+═══════════════════════════════════════════════════════ */
+
+function startProfilesListener() {
+  if (!auth.currentUser) return;
+  SecurityGuard.validateDataAccess('workspace_tools');
+
+  _unsubProfiles = db.collection('workspace_tools').doc(auth.currentUser.uid)
+    .collection('profiles').doc('list')
+    .onSnapshot(doc => {
+      if (doc.metadata.hasPendingWrites) return;
+      if (!doc.exists) return;
+      const data = doc.data();
+      if (data.updatedBy === SESSION_ID) return;
+      if (data.profiles && Array.isArray(data.profiles)) {
+        _profiles = data.profiles;
+        renderProfileSelector();
+        addActivityEntry('Profiles list synced from another device');
+      }
+    }, err => {
+      console.warn('[Profiles] Listener error:', err.message);
+    });
+}
+
+function stopProfilesListener() {
+  if (_unsubProfiles) { _unsubProfiles(); _unsubProfiles = null; }
+}
+
+/* ══════════════════════════════════════════════════════
+   LEGACY COMPATIBILITY — runUrlFilter / runDomainExtract
+═══════════════════════════════════════════════════════ */
+function runUrlFilter() { ufFilterDomains(); }
+function runDomainExtract() { deExtractDomains(); }
+
+/* ══════════════════════════════════════════════════════
+   CONSOLE BANNER
+═══════════════════════════════════════════════════════ */
+console.log(
+  '%c' + ENV.SYSTEM_NAME + ' %cv' + ENV.VERSION,
+  'background:var(--accent);color:#fff;padding:4px 8px;border-radius:4px 0 0 4px;font-weight:700',
+  'background:#4c6ef5;color:#fff;padding:4px 8px;border-radius:0 4px 4px 0;font-weight:400'
+);
+console.log('%c🔒 Security: PII_ACCESS=false | FINANCIAL_ACCESS=false | STATELESS_PROCESSING=true', 'color:#22c997;font-weight:600');
+console.log('%c☁️ Cloud Sync: Firebase Firestore | Real-Time Listeners | Session ID: ' + SESSION_ID, 'color:#6366f1;font-weight:600');
+console.log('%c⚡ Web Worker: Inline Blob URL | Batch Processing | Sub-100ms Optimistic UI', 'color:#f59f00;font-weight:600');
+</script>
+</body>
+</html>
